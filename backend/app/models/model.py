@@ -1,5 +1,5 @@
 """Model registry ORM model."""
-from sqlalchemy import CheckConstraint, Integer, Real, Text, text
+from sqlalchemy import REAL, CheckConstraint, Integer, Text, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -17,7 +17,7 @@ class Model(Base):
     ollama_tag: Mapped[str | None] = mapped_column(Text)
     api_model_id: Mapped[str | None] = mapped_column(Text)
     tier: Mapped[str] = mapped_column(Text, nullable=False)
-    input_cost_per_1k: Mapped[float] = mapped_column(Real, nullable=False, server_default="0")
-    output_cost_per_1k: Mapped[float] = mapped_column(Real, nullable=False, server_default="0")
+    input_cost_per_1k: Mapped[float] = mapped_column(REAL, nullable=False, server_default="0")
+    output_cost_per_1k: Mapped[float] = mapped_column(REAL, nullable=False, server_default="0")
     enabled: Mapped[int] = mapped_column(Integer, nullable=False, server_default="1")
     created_at: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("datetime('now')"))

@@ -1,5 +1,5 @@
 """Call log ORM model."""
-from sqlalchemy import CheckConstraint, ForeignKey, Integer, Real, Text, text
+from sqlalchemy import REAL, CheckConstraint, ForeignKey, Integer, Text, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -23,8 +23,8 @@ class CallLog(Base):
     prompt_version: Mapped[int | None] = mapped_column(Integer)
     in_tokens: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
     out_tokens: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
-    cost_sek: Mapped[float] = mapped_column(Real, nullable=False, server_default="0")
-    fx_rate: Mapped[float] = mapped_column(Real, nullable=False, server_default="0")
+    cost_sek: Mapped[float] = mapped_column(REAL, nullable=False, server_default="0")
+    fx_rate: Mapped[float] = mapped_column(REAL, nullable=False, server_default="0")
     duration_ms: Mapped[int | None] = mapped_column(Integer)
     status: Mapped[str] = mapped_column(Text, nullable=False)
     rendered_prompt: Mapped[str | None] = mapped_column(Text)

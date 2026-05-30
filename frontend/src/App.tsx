@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { NeedList } from './components/NeedList'
 import { ProjectList } from './components/ProjectList'
+import { SettingsPanel } from './components/SettingsPanel'
 
 export function App() {
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null)
@@ -14,6 +15,7 @@ export function App() {
         />
         <main className="flex-1 p-6">
           <NeedList projectId={selectedProjectId} />
+          <SettingsPanel />
         </main>
       </div>
     </div>

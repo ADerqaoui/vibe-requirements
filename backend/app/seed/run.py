@@ -6,6 +6,9 @@ from app.db import SessionLocal
 from app.models.discipline import Discipline
 from app.models.layer import Layer
 from app.models.layer_parent import LayerParent
+from app.models.model import Model
+from app.models.setting import Setting
+from app.seed.models_seed import CORE_SETTINGS, MODEL_SEED_ROWS
 from app.seed.reference_data import DISCIPLINES, LAYER_PARENTS, LAYERS
 
 
@@ -42,10 +45,38 @@ def seed_reference_data(db: Session) -> None:
     db.commit()
 
 
+def seed_models_and_settings(db: Session) -> None:
+    """Seed deterministic model registry rows and core settings."""
+    for model_data in MODEL_SEED_ROWS:
+        model = db.scalar(
+            select(Model).where(
+                Model.provider == model_data["provider"],
+                Model.name == model_data["name"],
+            )
+        )
+        if model is None:
+            db.add(Model(**model_data))
+            continue
+        model.ollama_tag = model_data["ollama_tag"]
+        model.api_model_id = model_data["api_model_id"]
+        model.tier = model_data["tier"]
+        model.input_cost_per_1k = model_data["input_cost_per_1k"]
+        model.output_cost_per_1k = model_data["output_cost_per_1k"]
+        model.enabled = model_data["enabled"]
+
+    for key, value in CORE_SETTINGS.items():
+        setting = db.get(Setting, key)
+        if setting is None:
+            db.add(Setting(key=key, value=value))
+
+    db.commit()
+
+
 def main() -> None:
     """Run the reference-data seed."""
     with SessionLocal() as db:
         seed_reference_data(db)
+        seed_models_and_settings(db)
 
 
 if __name__ == "__main__":
