@@ -1,0 +1,20 @@
+services:
+  backend:
+    build: ./backend
+    env_file: .env
+    environment:
+      - OLLAMA_HOST=http://host.docker.internal:11434
+      - DATABASE_URL=sqlite:////app/data/vibe-requirements.db
+    volumes:
+      - ./data:/app/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
