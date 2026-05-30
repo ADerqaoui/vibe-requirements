@@ -46,13 +46,21 @@ def _load_sqlite_vec(connection) -> None:
     """Load sqlite-vec so migrations can create vec0 virtual tables."""
     try:
         import sqlite_vec
+    except Exception as error:
+        raise RuntimeError(
+            "sqlite-vec is required for migrations because revision 0001 creates a vec0 table"
+        ) from error
 
-        dbapi_connection = connection.connection.driver_connection
+    dbapi_connection = connection.connection.driver_connection
+    try:
         dbapi_connection.enable_load_extension(True)
         sqlite_vec.load(dbapi_connection)
+    except Exception as error:
+        raise RuntimeError(
+            "sqlite-vec could not be loaded; revision 0001 requires the vec0 module"
+        ) from error
+    finally:
         dbapi_connection.enable_load_extension(False)
-    except Exception:
-        return
 
 
 if context.is_offline_mode():
