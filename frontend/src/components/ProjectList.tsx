@@ -7,6 +7,11 @@ import {
 } from '../api/projects'
 import type { Project } from '../types/project'
 
+type ProjectListProps = {
+  selectedProjectId: number | null
+  onSelectProject: (projectId: number | null) => void
+}
+
 function toErrorMessage(error: unknown): string {
   if (error instanceof Error) {
     return error.message
@@ -14,9 +19,8 @@ function toErrorMessage(error: unknown): string {
   return String(error)
 }
 
-export function ProjectList() {
+export function ProjectList({ selectedProjectId, onSelectProject }: ProjectListProps) {
   const [projects, setProjects] = useState<Project[]>([])
-  const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null)
   const [draftName, setDraftName] = useState('')
   const [renamingProjectId, setRenamingProjectId] = useState<number | null>(null)
   const [renameDraft, setRenameDraft] = useState('')
@@ -27,11 +31,11 @@ export function ProjectList() {
     fetchProjects()
       .then((loadedProjects) => {
         setProjects(loadedProjects)
-        setSelectedProjectId(loadedProjects[0]?.id ?? null)
+        onSelectProject(loadedProjects[0]?.id ?? null)
       })
       .catch((loadError: unknown) => setError(toErrorMessage(loadError)))
       .finally(() => setIsLoading(false))
-  }, [])
+  }, [onSelectProject])
 
   async function handleCreateProject(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -42,7 +46,7 @@ export function ProjectList() {
     try {
       const project = await createProject(name)
       setProjects((currentProjects) => [...currentProjects, project])
-      setSelectedProjectId(project.id)
+      onSelectProject(project.id)
       setDraftName('')
       setError(null)
     } catch (createError: unknown) {
@@ -76,7 +80,7 @@ export function ProjectList() {
       await deleteProject(project.id)
       setProjects((currentProjects) => currentProjects.filter((item) => item.id !== project.id))
       if (selectedProjectId === project.id) {
-        setSelectedProjectId(null)
+        onSelectProject(null)
       }
       setError(null)
     } catch (deleteError: unknown) {
@@ -148,7 +152,7 @@ export function ProjectList() {
                 <div className="flex items-center justify-between gap-2">
                   <button
                     className="min-w-0 flex-1 truncate text-left text-sm font-medium"
-                    onClick={() => setSelectedProjectId(project.id)}
+                    onClick={() => onSelectProject(project.id)}
                     type="button"
                   >
                     {project.name}

@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Project } from '../types/project'
 import { ProjectList } from './ProjectList'
@@ -25,6 +26,16 @@ function projectRow(projectName: string): HTMLElement {
     throw new Error(`Missing row for ${projectName}`)
   }
   return row
+}
+
+function ProjectListHarness() {
+  const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null)
+  return (
+    <ProjectList
+      onSelectProject={setSelectedProjectId}
+      selectedProjectId={selectedProjectId}
+    />
+  )
 }
 
 describe('ProjectList', () => {
@@ -89,14 +100,14 @@ describe('ProjectList', () => {
   })
 
   it('renders projects loaded from the API', async () => {
-    render(<ProjectList />)
+    render(<ProjectListHarness />)
 
     expect(await screen.findByText('Brake Controller')).toBeInTheDocument()
     expect(screen.getByText('Sensor Module')).toBeInTheDocument()
   })
 
   it('creates, renames, deletes, and highlights projects', async () => {
-    render(<ProjectList />)
+    render(<ProjectListHarness />)
 
     expect(await screen.findByText('Brake Controller')).toBeInTheDocument()
 
