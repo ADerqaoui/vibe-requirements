@@ -6,6 +6,7 @@ from app.db import get_db
 from app.models.model import Model
 from app.schemas.model import ModelCreate, ModelRead, ModelUpdate
 from app.services.model_service import (
+    ModelHasCallHistoryError,
     ModelNotFoundError,
     create_model,
     delete_model,
@@ -51,6 +52,11 @@ async def delete_model_route(model_id: int, db: Session = Depends(get_db)) -> Re
         delete_model(db, model_id)
     except ModelNotFoundError as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Model not found") from error
+    except ModelHasCallHistoryError as error:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="model has call history; disable it instead",
+        ) from error
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

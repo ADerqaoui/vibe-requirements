@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.config import Settings
 from app.models.setting import Setting
-from app.schemas.setting import SettingRead
+from app.schemas.setting import ALLOWED_SETTING_KEYS, SettingRead
 
 PROVIDERS = ("anthropic", "openai", "deepseek")
 
@@ -20,11 +20,14 @@ def list_settings(db: Session, settings: Settings) -> tuple[list[SettingRead], d
 
 
 def update_settings(db: Session, setting_values: list[SettingRead]) -> list[SettingRead]:
-    """Upsert non-secret settings."""
+    """Upsert only core non-secret settings."""
     for setting_value in setting_values:
-        setting = db.get(Setting, setting_value.key)
+        normalized_key = setting_value.key.strip()
+        if normalized_key not in ALLOWED_SETTING_KEYS:
+            raise ValueError("Only core non-secret settings can be updated")
+        setting = db.get(Setting, normalized_key)
         if setting is None:
-            db.add(Setting(key=setting_value.key, value=setting_value.value))
+            db.add(Setting(key=normalized_key, value=setting_value.value))
             continue
         setting.value = setting_value.value
     db.commit()

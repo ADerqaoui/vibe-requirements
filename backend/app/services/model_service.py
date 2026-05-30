@@ -10,6 +10,10 @@ class ModelNotFoundError(Exception):
     """Raised when a model does not exist."""
 
 
+class ModelHasCallHistoryError(Exception):
+    """Raised when a model has call logs and should be disabled instead."""
+
+
 def list_models(db: Session) -> list[tuple[Model, float]]:
     """Return models with cumulative logged SEK cost."""
     cost_totals = (
@@ -47,6 +51,11 @@ def update_model(db: Session, model_id: int, values: dict[str, object]) -> Model
 def delete_model(db: Session, model_id: int) -> None:
     """Delete a model registry row."""
     model = get_model(db, model_id)
+    has_call_history = db.scalar(
+        select(CallLog.id).where(CallLog.model_id == model_id).limit(1)
+    )
+    if has_call_history is not None:
+        raise ModelHasCallHistoryError
     db.delete(model)
     db.commit()
 

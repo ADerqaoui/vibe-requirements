@@ -1,10 +1,11 @@
 """Settings API schemas."""
 from pydantic import BaseModel, Field, field_validator
 
-PROVIDER_KEY_NAMES = {
-    "anthropic_api_key",
-    "openai_api_key",
-    "deepseek_api_key",
+ALLOWED_SETTING_KEYS = {
+    "fx_rate_usd_sek",
+    "complexity_tier_map",
+    "router_default",
+    "cost_ceiling_sek",
 }
 
 
@@ -29,9 +30,11 @@ class SettingsUpdate(BaseModel):
 
     @field_validator("settings")
     @classmethod
-    def reject_secret_settings(cls, value: list[SettingRead]) -> list[SettingRead]:
-        """Reject attempts to persist provider key values."""
+    def allow_core_settings_only(cls, value: list[SettingRead]) -> list[SettingRead]:
+        """Accept only the four core non-secret settings."""
         for setting in value:
-            if setting.key in PROVIDER_KEY_NAMES:
-                raise ValueError("Provider API keys are configured through .env only")
+            normalized_key = setting.key.strip()
+            if normalized_key not in ALLOWED_SETTING_KEYS:
+                raise ValueError("Only core non-secret settings can be updated")
+            setting.key = normalized_key
         return value

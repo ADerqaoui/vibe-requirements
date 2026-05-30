@@ -56,13 +56,6 @@ def seed_models_and_settings(db: Session) -> None:
         )
         if model is None:
             db.add(Model(**model_data))
-            continue
-        model.ollama_tag = model_data["ollama_tag"]
-        model.api_model_id = model_data["api_model_id"]
-        model.tier = model_data["tier"]
-        model.input_cost_per_1k = model_data["input_cost_per_1k"]
-        model.output_cost_per_1k = model_data["output_cost_per_1k"]
-        model.enabled = model_data["enabled"]
 
     for key, value in CORE_SETTINGS.items():
         setting = db.get(Setting, key)

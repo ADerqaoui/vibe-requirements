@@ -48,7 +48,7 @@ async def test_settings_put_updates_non_key_settings_only(
     api_app: FastAPI,
     db_session: Session,
 ) -> None:
-    """Settings PUT updates values and rejects API-key persistence."""
+    """Settings PUT updates the four core non-secret settings."""
     seed_models_and_settings(db_session)
 
     transport = ASGITransport(app=api_app)
@@ -59,18 +59,44 @@ async def test_settings_put_updates_non_key_settings_only(
                 "settings": [
                     {"key": "fx_rate_usd_sek", "value": "10.5"},
                     {"key": "router_default", "value": "on"},
+                    {"key": "complexity_tier_map", "value": "1:low,2-3:mid,4-5:high"},
+                    {"key": "cost_ceiling_sek", "value": "75"},
                 ]
             },
-        )
-        rejected_response = await client.put(
-            "/api/settings",
-            json={"settings": [{"key": "openai_api_key", "value": "secret"}]},
         )
 
     db_keys = db_session.execute(text("SELECT key, value FROM settings")).all()
     assert update_response.status_code == 200
     assert {"key": "fx_rate_usd_sek", "value": "10.5"} in update_response.json()["settings"]
     assert {"key": "router_default", "value": "on"} in update_response.json()["settings"]
-    assert rejected_response.status_code == 422
-    assert ("openai_api_key", "secret") not in db_keys
-    assert all(value != "secret" for _key, value in db_keys)
+    assert {
+        "key": "complexity_tier_map",
+        "value": "1:low,2-3:mid,4-5:high",
+    } in update_response.json()["settings"]
+    assert {"key": "cost_ceiling_sek", "value": "75"} in update_response.json()["settings"]
+    assert ("fx_rate_usd_sek", "10.5") in db_keys
+    assert ("router_default", "on") in db_keys
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("key", ["OPENAI_API_KEY", "openai_api_key ", "foo"])
+async def test_settings_put_rejects_non_core_settings_without_writing(
+    api_app: FastAPI,
+    db_session: Session,
+    key: str,
+) -> None:
+    """Settings PUT rejects any key outside the four core settings."""
+    seed_models_and_settings(db_session)
+    before_rows = db_session.execute(text("SELECT key, value FROM settings ORDER BY key")).all()
+
+    transport = ASGITransport(app=api_app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.put(
+            "/api/settings",
+            json={"settings": [{"key": key, "value": "secret"}]},
+        )
+
+    after_rows = db_session.execute(text("SELECT key, value FROM settings ORDER BY key")).all()
+    assert response.status_code == 422
+    assert after_rows == before_rows
+    assert all(value != "secret" for _key, value in after_rows)
