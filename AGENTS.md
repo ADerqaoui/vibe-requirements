@@ -49,3 +49,6 @@ Branch each slice from `main` only AFTER the previous slice is merged. Never bui
 
 ## Branching rule
 Branch each slice from `main` only AFTER the previous slice is merged. Never build a slice on an unmerged branch (no stacked PRs).
+
+## Handoff requirement
+In your handoff (under "## Codex — handoff & notes"), include an acceptance-to-test mapping table for the slice spec: each acceptance criterion -> the test that covers it -> covered yes/no. Note any criterion not covered by an automated test.
