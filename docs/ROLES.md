@@ -51,3 +51,7 @@ All non-code communication lives in docs/exchange/slice-NN.md — one file per s
 - Codex obeys only the spec, not whichever AI spoke last.
 - Each tool reads the latest repo state before acting; never from memory of an old version.
 - One slice per branch; `main` always boots.
+
+- No stacked PRs: branch each slice from `main` only after the previous slice is merged.
+
+- No stacked PRs: branch each slice from `main` only after the previous slice is merged.
