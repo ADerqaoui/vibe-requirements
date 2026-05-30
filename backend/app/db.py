@@ -42,7 +42,7 @@ def _load_sqlite_vec(dbapi_connection) -> None:
         logger.warning("sqlite-vec not loaded (vector features disabled): %s", error)
 
 
-def get_db():
+async def get_db():
     """Yield a database session and ensure it is closed afterwards."""
     db = SessionLocal()
     try:

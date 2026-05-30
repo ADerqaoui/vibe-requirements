@@ -15,7 +15,8 @@ Full spec in `requirements.md` and `architecture.md`.
     python -m venv .venv
     source .venv/bin/activate
     pip install -e ".[dev]"
-    alembic upgrade head        # no migrations yet in slice 1
+    alembic upgrade head
+    python -m app.seed.run      # idempotent reference data seed
     uvicorn app.main:app --reload --port 8000
 
 ### 3. Frontend (second terminal)

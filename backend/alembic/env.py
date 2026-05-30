@@ -11,7 +11,8 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-config.set_main_option("sqlalchemy.url", get_settings().database_url)
+if config.get_main_option("sqlalchemy.url") is None:
+    config.set_main_option("sqlalchemy.url", get_settings().database_url)
 target_metadata = Base.metadata
 
 
@@ -34,9 +35,24 @@ def run_migrations_online() -> None:
         poolclass=pool.NullPool,
     )
     with connectable.connect() as connection:
+        connection.exec_driver_sql("PRAGMA foreign_keys=ON")
+        _load_sqlite_vec(connection)
         context.configure(connection=connection, target_metadata=target_metadata)
         with context.begin_transaction():
             context.run_migrations()
+
+
+def _load_sqlite_vec(connection) -> None:
+    """Load sqlite-vec so migrations can create vec0 virtual tables."""
+    try:
+        import sqlite_vec
+
+        dbapi_connection = connection.connection.driver_connection
+        dbapi_connection.enable_load_extension(True)
+        sqlite_vec.load(dbapi_connection)
+        dbapi_connection.enable_load_extension(False)
+    except Exception:
+        return
 
 
 if context.is_offline_mode():
