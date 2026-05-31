@@ -48,6 +48,7 @@ def _spec_out(spec: Spec) -> SpecOut:
         id=spec.id,
         need_id=spec.need_id,
         statement=spec.text,
+        complexity=spec.complexity,
         created_at=spec.created_at,
         updated_at=spec.updated_at,
     )
