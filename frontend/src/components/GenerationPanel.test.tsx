@@ -67,6 +67,7 @@ describe('GenerationPanel', () => {
               id: 10,
               need_id: needId,
               statement: payload.statement,
+              complexity: null,
               created_at: '2026-05-31T01:00:00',
               updated_at: '2026-05-31T01:00:00',
             },
