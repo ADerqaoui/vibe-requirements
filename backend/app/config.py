@@ -14,6 +14,9 @@ class Settings(BaseSettings):
 
     # Ollama (local LLM host)
     ollama_host: str = "http://localhost:11434"
+    ollama_timeout_seconds: float = 120.0
+    cloud_timeout_seconds: float = 60.0
+    llm_retry_count: int = 2
 
     # Cloud provider keys (blank = provider disabled). Read from .env only.
     anthropic_api_key: str = ""

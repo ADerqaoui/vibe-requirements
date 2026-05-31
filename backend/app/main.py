@@ -4,6 +4,7 @@ import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.gateway import router as gateway_router
 from app.api.health import router as health_router
 from app.api.models import router as models_router
 from app.api.needs import router as needs_router
@@ -28,6 +29,7 @@ def create_app() -> FastAPI:
     app.include_router(projects_router, prefix="/api")
     app.include_router(needs_router, prefix="/api")
     app.include_router(models_router, prefix="/api")
+    app.include_router(gateway_router, prefix="/api")
     app.include_router(settings_router, prefix="/api")
     return app
 

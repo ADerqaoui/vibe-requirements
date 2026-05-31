@@ -1,5 +1,5 @@
 """Spec ORM model."""
-from sqlalchemy import CheckConstraint, ForeignKey, Integer, Text, text
+from sqlalchemy import CheckConstraint, ForeignKey, Integer, Text, text as sql_text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -25,5 +25,5 @@ class Spec(Base):
     complexity: Mapped[int | None] = mapped_column(Integer)
     gen_model_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("models.id"))
     gen_prompt_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("prompts.id"))
-    created_at: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("datetime('now')"))
-    updated_at: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("datetime('now')"))
+    created_at: Mapped[str] = mapped_column(Text, nullable=False, server_default=sql_text("datetime('now')"))
+    updated_at: Mapped[str] = mapped_column(Text, nullable=False, server_default=sql_text("datetime('now')"))
