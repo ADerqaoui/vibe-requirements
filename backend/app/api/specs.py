@@ -4,18 +4,22 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.models.spec import Spec
-from app.schemas.spec import SpecCreate, SpecOut
+from app.schemas.spec import SpecCreate, SpecOut, SpecTreeNode
 from app.services.need_service import NeedNotFoundError
 from app.services.spec_service import (
     SpecLayerNotFoundError,
+    SpecNotFoundError,
+    create_spec_for_parent_spec,
     create_spec_for_need,
+    list_full_spec_tree_for_need,
+    list_children_of_spec,
     list_specs_for_need,
 )
 
-router = APIRouter(prefix="/needs/{need_id}/specs", tags=["specs"])
+router = APIRouter(tags=["specs"])
 
 
-@router.get("", response_model=list[SpecOut])
+@router.get("/needs/{need_id}/specs", response_model=list[SpecOut])
 async def list_specs_route(need_id: int, db: Session = Depends(get_db)) -> list[SpecOut]:
     """List specs under a Need."""
     try:
@@ -24,7 +28,16 @@ async def list_specs_route(need_id: int, db: Session = Depends(get_db)) -> list[
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Need not found") from error
 
 
-@router.post("", response_model=SpecOut, status_code=status.HTTP_201_CREATED)
+@router.get("/needs/{need_id}/spec-tree", response_model=list[SpecTreeNode])
+async def list_spec_tree_route(need_id: int, db: Session = Depends(get_db)) -> list[SpecTreeNode]:
+    """List the full nested Spec tree under a Need."""
+    try:
+        return _spec_tree(list_full_spec_tree_for_need(db, need_id))
+    except NeedNotFoundError as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Need not found") from error
+
+
+@router.post("/needs/{need_id}/specs", response_model=SpecOut, status_code=status.HTTP_201_CREATED)
 async def create_spec_route(
     need_id: int,
     payload: SpecCreate,
@@ -42,13 +55,67 @@ async def create_spec_route(
         ) from error
 
 
+@router.get("/specs/{spec_id}/specs", response_model=list[SpecOut])
+async def list_child_specs_route(spec_id: int, db: Session = Depends(get_db)) -> list[SpecOut]:
+    """List direct child Specs under a Spec."""
+    try:
+        return [_spec_out(spec) for spec in list_children_of_spec(db, spec_id)]
+    except SpecNotFoundError as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Spec not found") from error
+
+
+@router.post("/specs/{spec_id}/specs", response_model=SpecOut, status_code=status.HTTP_201_CREATED)
+async def create_child_spec_route(
+    spec_id: int,
+    payload: SpecCreate,
+    db: Session = Depends(get_db),
+) -> SpecOut:
+    """Create a child Spec under a Spec."""
+    try:
+        return _spec_out(create_spec_for_parent_spec(db, spec_id, payload.statement))
+    except SpecNotFoundError as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Spec not found") from error
+    except SpecLayerNotFoundError as error:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Default spec layer not found",
+        ) from error
+
+
 def _spec_out(spec: Spec) -> SpecOut:
     """Map ORM fields to the slice API shape."""
     return SpecOut(
         id=spec.id,
         need_id=spec.need_id,
+        parent_spec_id=spec.parent_spec_id,
         statement=spec.text,
         complexity=spec.complexity,
+        status=spec.status,
         created_at=spec.created_at,
         updated_at=spec.updated_at,
     )
+
+
+def _spec_tree(specs: list[Spec]) -> list[SpecTreeNode]:
+    """Build a recursively nested Spec tree from id-ordered rows."""
+    nodes = {
+        spec.id: SpecTreeNode(
+            id=spec.id,
+            statement=spec.text,
+            complexity=spec.complexity,
+            status=spec.status,
+            parent_spec_id=spec.parent_spec_id,
+            children=[],
+        )
+        for spec in specs
+    }
+    roots: list[SpecTreeNode] = []
+    for spec in specs:
+        node = nodes[spec.id]
+        if spec.parent_spec_id is None:
+            roots.append(node)
+            continue
+        parent = nodes.get(spec.parent_spec_id)
+        if parent is not None:
+            parent.children.append(node)
+    return roots

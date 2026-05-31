@@ -1,10 +1,22 @@
 import { useState } from 'react'
 import { classifySpec } from '../api/classification'
 import type { ClassificationVote } from '../types/classification'
-import type { Spec } from '../types/spec'
+import type { SpecTreeNode } from '../types/spec'
 
 type SpecListProps = {
-  specs: Spec[]
+  specs: SpecTreeNode[]
+  onSelectSpec?: (spec: SpecTreeNode) => void
+  selectedSpecId?: number | null
+}
+
+type SpecNodeProps = {
+  spec: SpecTreeNode
+  complexityBySpec: Record<number, number>
+  votesBySpec: Record<number, ClassificationVote[]>
+  loadingSpecId: number | null
+  selectedSpecId?: number | null
+  onClassify: (spec: SpecTreeNode) => void
+  onSelectSpec?: (spec: SpecTreeNode) => void
 }
 
 function voteTooltip(votes: ClassificationVote[] | undefined): string {
@@ -14,13 +26,13 @@ function voteTooltip(votes: ClassificationVote[] | undefined): string {
   return votes.map((vote) => `Model ${vote.model_id}: ${vote.vote}`).join('\n')
 }
 
-export function SpecList({ specs }: SpecListProps) {
+export function SpecList({ specs, onSelectSpec, selectedSpecId }: SpecListProps) {
   const [complexityBySpec, setComplexityBySpec] = useState<Record<number, number>>({})
   const [votesBySpec, setVotesBySpec] = useState<Record<number, ClassificationVote[]>>({})
   const [loadingSpecId, setLoadingSpecId] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  async function handleClassify(spec: Spec) {
+  async function handleClassify(spec: SpecTreeNode) {
     setLoadingSpecId(spec.id)
     try {
       const result = await classifySpec(spec.id)
@@ -45,31 +57,80 @@ export function SpecList({ specs }: SpecListProps) {
     <>
       {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
       <ul className="mt-2 space-y-2">
-        {specs.map((spec) => {
-          const complexity = complexityBySpec[spec.id] ?? spec.complexity
-          return (
-            <li className="rounded-md border border-neutral-200 bg-white p-3 text-sm" key={spec.id}>
-              <div className="flex items-start justify-between gap-3">
-                <p className="min-w-0 flex-1 text-neutral-950">{spec.statement}</p>
-                <span
-                  className="rounded bg-neutral-100 px-2 py-1 text-xs text-neutral-700"
-                  title={voteTooltip(votesBySpec[spec.id])}
-                >
-                  {complexity ?? '—'}
-                </span>
-                <button
-                  className="text-xs font-medium text-neutral-900"
-                  disabled={loadingSpecId === spec.id}
-                  onClick={() => handleClassify(spec)}
-                  type="button"
-                >
-                  {loadingSpecId === spec.id ? 'Classifying...' : 'Classify'}
-                </button>
-              </div>
-            </li>
-          )
-        })}
+        {specs.map((spec) => (
+          <SpecNode
+            complexityBySpec={complexityBySpec}
+            key={spec.id}
+            loadingSpecId={loadingSpecId}
+            onClassify={handleClassify}
+            onSelectSpec={onSelectSpec}
+            selectedSpecId={selectedSpecId}
+            spec={spec}
+            votesBySpec={votesBySpec}
+          />
+        ))}
       </ul>
     </>
+  )
+}
+
+function SpecNode({
+  spec,
+  complexityBySpec,
+  votesBySpec,
+  loadingSpecId,
+  selectedSpecId,
+  onClassify,
+  onSelectSpec,
+}: SpecNodeProps) {
+  const complexity = complexityBySpec[spec.id] ?? spec.complexity
+  const isSelected = selectedSpecId === spec.id
+
+  return (
+    <li
+      className={`rounded-md border bg-white p-3 text-sm ${
+        isSelected ? 'border-blue-500 border-l-4 bg-blue-50 font-medium' : 'border-neutral-200'
+      }`}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <button
+          className="min-w-0 flex-1 text-left text-neutral-950"
+          onClick={() => onSelectSpec?.(spec)}
+          type="button"
+        >
+          {spec.statement}
+        </button>
+        <span
+          className="rounded bg-neutral-100 px-2 py-1 text-xs text-neutral-700"
+          title={voteTooltip(votesBySpec[spec.id])}
+        >
+          {complexity ?? '—'}
+        </span>
+        <button
+          className="text-xs font-medium text-neutral-900"
+          disabled={loadingSpecId === spec.id}
+          onClick={() => onClassify(spec)}
+          type="button"
+        >
+          {loadingSpecId === spec.id ? 'Classifying...' : 'Classify'}
+        </button>
+      </div>
+      {spec.children.length > 0 && (
+        <ul className="mt-2 space-y-2 border-l border-neutral-200 pl-4">
+          {spec.children.map((child) => (
+            <SpecNode
+              complexityBySpec={complexityBySpec}
+              key={child.id}
+              loadingSpecId={loadingSpecId}
+              onClassify={onClassify}
+              onSelectSpec={onSelectSpec}
+              selectedSpecId={selectedSpecId}
+              spec={child}
+              votesBySpec={votesBySpec}
+            />
+          ))}
+        </ul>
+      )}
+    </li>
   )
 }

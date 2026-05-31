@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { GenerationCandidate } from '../types/generation'
 import type { Model } from '../types/model'
-import type { Spec } from '../types/spec'
+import type { SpecTreeNode } from '../types/spec'
 import { GenerationPanel } from './GenerationPanel'
 
 const models: Model[] = [
@@ -24,18 +24,36 @@ function jsonResponse(body: unknown): Response {
   return { ok: true, json: async () => body } as Response
 }
 
+function appendChild(
+  specs: SpecTreeNode[],
+  parentSpecId: number,
+  child: SpecTreeNode,
+): SpecTreeNode[] {
+  return specs.map((spec) => {
+    if (spec.id === parentSpecId) {
+      return { ...spec, children: [...spec.children, child] }
+    }
+    return { ...spec, children: appendChild(spec.children, parentSpecId, child) }
+  })
+}
+
 describe('GenerationPanel', () => {
-  let specsByNeed: Record<number, Spec[]>
+  let specTreeByNeed: Record<number, SpecTreeNode[]>
   let candidatesByNeed: Record<number, GenerationCandidate[]>
+  let candidatesBySpec: Record<number, GenerationCandidate[]>
 
   beforeEach(() => {
-    specsByNeed = { 1: [], 2: [] }
+    specTreeByNeed = { 1: [], 2: [] }
     candidatesByNeed = {
       1: [
         { index: 1, statement: 'The system shall brake.' },
         { index: 2, statement: 'The system shall alert.' },
       ],
       2: [{ index: 1, statement: 'The system shall park.' }],
+    }
+    candidatesBySpec = {
+      10: [{ index: 1, statement: 'The actuator shall clamp.' }],
+      20: [{ index: 1, statement: 'The controller shall trace.' }],
     }
 
     vi.stubGlobal(
@@ -48,9 +66,9 @@ describe('GenerationPanel', () => {
           return jsonResponse(models)
         }
 
-        if (path.startsWith('/api/needs/') && path.endsWith('/specs') && method === 'GET') {
-          const needId = Number(path.replace('/api/needs/', '').replace('/specs', ''))
-          return jsonResponse(specsByNeed[needId] ?? [])
+        if (path.startsWith('/api/needs/') && path.endsWith('/spec-tree') && method === 'GET') {
+          const needId = Number(path.replace('/api/needs/', '').replace('/spec-tree', ''))
+          return jsonResponse(specTreeByNeed[needId] ?? [])
         }
 
         if (path.startsWith('/api/needs/') && path.endsWith('/generate') && method === 'POST') {
@@ -58,22 +76,51 @@ describe('GenerationPanel', () => {
           return jsonResponse({ candidates: candidatesByNeed[needId] ?? [] })
         }
 
+        if (path.startsWith('/api/specs/') && path.endsWith('/generate') && method === 'POST') {
+          const specId = Number(path.replace('/api/specs/', '').replace('/generate', ''))
+          return jsonResponse({ candidates: candidatesBySpec[specId] ?? [] })
+        }
+
         if (path.startsWith('/api/needs/') && path.endsWith('/specs') && method === 'POST') {
           const needId = Number(path.replace('/api/needs/', '').replace('/specs', ''))
           const payload = JSON.parse(String(init?.body)) as { statement: string }
           const specs = [
-            ...(specsByNeed[needId] ?? []),
+            ...(specTreeByNeed[needId] ?? []),
             {
               id: 10,
-              need_id: needId,
               statement: payload.statement,
               complexity: null,
-              created_at: '2026-05-31T01:00:00',
-              updated_at: '2026-05-31T01:00:00',
+              status: 'pending',
+              parent_spec_id: null,
+              children: [],
             },
           ]
-          specsByNeed = { ...specsByNeed, [needId]: specs }
+          specTreeByNeed = { ...specTreeByNeed, [needId]: specs }
           return jsonResponse(specs[specs.length - 1])
+        }
+
+        if (path.startsWith('/api/specs/') && path.endsWith('/specs') && method === 'POST') {
+          const specId = Number(path.replace('/api/specs/', '').replace('/specs', ''))
+          const payload = JSON.parse(String(init?.body)) as { statement: string }
+          const child: SpecTreeNode = {
+            id: 30,
+            statement: payload.statement,
+            complexity: null,
+            status: 'pending',
+            parent_spec_id: specId,
+            children: [],
+          }
+          specTreeByNeed = { ...specTreeByNeed, 1: appendChild(specTreeByNeed[1] ?? [], specId, child) }
+          return jsonResponse({
+            id: child.id,
+            need_id: 1,
+            parent_spec_id: specId,
+            statement: payload.statement,
+            complexity: null,
+            status: 'pending',
+            created_at: '2026-05-31T01:00:00',
+            updated_at: '2026-05-31T01:00:00',
+          })
         }
 
         return { ok: false, status: 500, json: async () => ({}) } as Response
@@ -96,7 +143,7 @@ describe('GenerationPanel', () => {
     expect(screen.getByText('The system shall alert.')).toBeInTheDocument()
 
     fireEvent.click(screen.getAllByRole('button', { name: 'Accept' })[0])
-    await waitFor(() => expect(fetch).toHaveBeenCalledWith('/api/needs/1/specs'))
+    await waitFor(() => expect(fetch).toHaveBeenCalledWith('/api/needs/1/spec-tree'))
     expect(await screen.findAllByText('The system shall brake.')).toHaveLength(1)
 
     fireEvent.click(screen.getByRole('button', { name: 'Reject' }))
@@ -123,5 +170,125 @@ describe('GenerationPanel', () => {
         expect.objectContaining({ method: 'POST' }),
       ),
     )
+  })
+
+  it('generates and accepts child specs for a selected Spec', async () => {
+    render(<GenerationPanel parent={{ kind: 'spec', id: 10 }} rootNeedId={1} />)
+
+    expect(await screen.findByText('qwen')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Generate' }))
+    expect(await screen.findByText('The actuator shall clamp.')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Accept' }))
+
+    await waitFor(() =>
+      expect(fetch).toHaveBeenCalledWith(
+        '/api/specs/10/specs',
+        expect.objectContaining({ method: 'POST' }),
+      ),
+    )
+    await waitFor(() =>
+      expect(screen.queryByText('The actuator shall clamp.')).not.toBeInTheDocument(),
+    )
+  })
+
+  it('keeps the full tree visible while selecting nodes and accepting a child candidate', async () => {
+    specTreeByNeed = {
+      1: [
+        {
+          id: 10,
+          statement: 'Root spec',
+          complexity: null,
+          status: 'pending',
+          parent_spec_id: null,
+          children: [
+            {
+              id: 20,
+              statement: 'Child spec',
+              complexity: null,
+              status: 'pending',
+              parent_spec_id: 10,
+              children: [],
+            },
+          ],
+        },
+      ],
+    }
+    const handleSelectSpec = vi.fn()
+    const { rerender } = render(
+      <GenerationPanel
+        onSelectSpec={handleSelectSpec}
+        parent={{ kind: 'need', id: 1 }}
+        rootNeedId={1}
+      />,
+    )
+
+    const rootNode = await screen.findByText('Root spec')
+    const childNode = screen.getByText('Child spec')
+    expect(rootNode.closest('li')).toContainElement(childNode)
+
+    fireEvent.click(rootNode)
+    expect(handleSelectSpec).toHaveBeenCalledWith(expect.objectContaining({ id: 10 }))
+
+    rerender(
+      <GenerationPanel
+        onSelectSpec={handleSelectSpec}
+        parent={{ kind: 'spec', id: 10 }}
+        rootNeedId={1}
+      />,
+    )
+    expect(await screen.findByText('Root spec')).toBeInTheDocument()
+    expect(screen.getByText('Child spec')).toBeInTheDocument()
+    expect(screen.getByText('Root spec').closest('li')).toHaveClass('border-blue-500')
+
+    fireEvent.click(screen.getByText('Child spec'))
+    expect(handleSelectSpec).toHaveBeenCalledWith(expect.objectContaining({ id: 20 }))
+
+    rerender(
+      <GenerationPanel
+        onSelectSpec={handleSelectSpec}
+        parent={{ kind: 'spec', id: 20 }}
+        rootNeedId={1}
+      />,
+    )
+    expect(await screen.findByText('Root spec')).toBeInTheDocument()
+    expect(screen.getByText('Child spec').closest('li')).toHaveClass('border-blue-500')
+    expect(screen.getByText('Root spec').closest('li')).toContainElement(screen.getByText('Child spec'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Generate' }))
+    expect(await screen.findByText('The controller shall trace.')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Accept' }))
+
+    await waitFor(() => expect(screen.getAllByText('The controller shall trace.')).toHaveLength(1))
+    expect(screen.getByText('Child spec').closest('li')).toContainElement(
+      screen.getByText('The controller shall trace.'),
+    )
+  })
+
+  it('clears stale candidates on Need-Spec, Spec-Spec, and Spec-Need switches', async () => {
+    const { rerender } = render(<GenerationPanel parent={{ kind: 'need', id: 1 }} rootNeedId={1} />)
+
+    expect(await screen.findByLabelText('Generation model')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Generate' }))
+    expect(await screen.findByText('The system shall brake.')).toBeInTheDocument()
+
+    rerender(<GenerationPanel parent={{ kind: 'spec', id: 10 }} rootNeedId={1} />)
+    await waitFor(() => expect(screen.queryByText('The system shall brake.')).not.toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: 'Generate' }))
+    expect(await screen.findByText('The actuator shall clamp.')).toBeInTheDocument()
+
+    rerender(<GenerationPanel parent={{ kind: 'spec', id: 20 }} rootNeedId={1} />)
+    await waitFor(() =>
+      expect(screen.queryByText('The actuator shall clamp.')).not.toBeInTheDocument(),
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Generate' }))
+    expect(await screen.findByText('The controller shall trace.')).toBeInTheDocument()
+
+    rerender(<GenerationPanel parent={{ kind: 'need', id: 2 }} rootNeedId={2} />)
+    await waitFor(() =>
+      expect(screen.queryByText('The controller shall trace.')).not.toBeInTheDocument(),
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Generate' }))
+    expect(await screen.findByText('The system shall park.')).toBeInTheDocument()
   })
 })

@@ -1,7 +1,8 @@
 import { FormEvent, useEffect, useState } from 'react'
 import { createNeed, deleteNeed, fetchProjectNeeds, updateNeed } from '../api/needs'
 import type { Need, NeedPayload } from '../types/need'
-import { GenerationPanel } from './GenerationPanel'
+import type { SpecTreeNode } from '../types/spec'
+import { GenerationPanel, type GenerationParent } from './GenerationPanel'
 
 type NeedListProps = {
   projectId: number | null
@@ -45,6 +46,7 @@ function payloadFromDraft(draft: NeedDraft): NeedPayload {
 export function NeedList({ projectId }: NeedListProps) {
   const [needs, setNeeds] = useState<Need[]>([])
   const [selectedNeedId, setSelectedNeedId] = useState<number | null>(null)
+  const [selectedParent, setSelectedParent] = useState<GenerationParent | null>(null)
   const [draft, setDraft] = useState<NeedDraft>(EMPTY_DRAFT)
   const [editingNeedId, setEditingNeedId] = useState<number | null>(null)
   const [editDraft, setEditDraft] = useState<NeedDraft>(EMPTY_DRAFT)
@@ -55,6 +57,7 @@ export function NeedList({ projectId }: NeedListProps) {
     if (projectId === null) {
       setNeeds([])
       setSelectedNeedId(null)
+      setSelectedParent(null)
       return
     }
 
@@ -66,7 +69,9 @@ export function NeedList({ projectId }: NeedListProps) {
           return
         }
         setNeeds(loadedNeeds)
-        setSelectedNeedId(loadedNeeds[0]?.id ?? null)
+        const nextNeedId = loadedNeeds[0]?.id ?? null
+        setSelectedNeedId(nextNeedId)
+        setSelectedParent(nextNeedId === null ? null : { kind: 'need', id: nextNeedId })
         setError(null)
       })
       .catch((loadError: unknown) => {
@@ -94,6 +99,7 @@ export function NeedList({ projectId }: NeedListProps) {
       const need = await createNeed(projectId, payloadFromDraft(draft))
       setNeeds((currentNeeds) => [...currentNeeds, need])
       setSelectedNeedId(need.id)
+      setSelectedParent({ kind: 'need', id: need.id })
       setDraft(EMPTY_DRAFT)
       setError(null)
     } catch (createError: unknown) {
@@ -125,6 +131,7 @@ export function NeedList({ projectId }: NeedListProps) {
       setNeeds((currentNeeds) => currentNeeds.filter((item) => item.id !== need.id))
       if (selectedNeedId === need.id) {
         setSelectedNeedId(null)
+        setSelectedParent(null)
       }
       setError(null)
     } catch (deleteError: unknown) {
@@ -135,6 +142,15 @@ export function NeedList({ projectId }: NeedListProps) {
   function beginEdit(need: Need) {
     setEditingNeedId(need.id)
     setEditDraft(draftFromNeed(need))
+  }
+
+  function selectNeed(needId: number) {
+    setSelectedNeedId(needId)
+    setSelectedParent({ kind: 'need', id: needId })
+  }
+
+  function selectSpec(spec: SpecTreeNode) {
+    setSelectedParent({ kind: 'spec', id: spec.id })
   }
 
   if (projectId === null) {
@@ -180,12 +196,12 @@ export function NeedList({ projectId }: NeedListProps) {
 
       <ul className="mt-4 space-y-2">
         {needs.map((need) => {
-          const isSelected = selectedNeedId === need.id
+          const isSelected = selectedParent?.kind === 'need' && selectedParent.id === need.id
           const isEditing = editingNeedId === need.id
           return (
             <li
               className={`rounded-md border bg-white p-3 ${
-                isSelected ? 'border-neutral-950' : 'border-neutral-200'
+                isSelected ? 'border-blue-500 border-l-4 bg-blue-50 font-medium' : 'border-neutral-200'
               }`}
               key={need.id}
             >
@@ -223,7 +239,7 @@ export function NeedList({ projectId }: NeedListProps) {
                 <div className="flex items-start justify-between gap-3">
                   <button
                     className="min-w-0 flex-1 text-left"
-                    onClick={() => setSelectedNeedId(need.id)}
+                    onClick={() => selectNeed(need.id)}
                     type="button"
                   >
                     <span className="block text-sm font-medium text-neutral-950">{need.statement}</span>
@@ -249,7 +265,11 @@ export function NeedList({ projectId }: NeedListProps) {
           )
         })}
       </ul>
-      <GenerationPanel needId={selectedNeedId} />
+      <GenerationPanel
+        onSelectSpec={selectSpec}
+        parent={selectedParent}
+        rootNeedId={selectedNeedId}
+      />
     </section>
   )
 }

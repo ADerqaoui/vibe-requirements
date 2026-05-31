@@ -58,6 +58,10 @@ describe('NeedList', () => {
           return jsonResponse([])
         }
 
+        if (path.startsWith('/api/needs/') && path.endsWith('/spec-tree') && method === 'GET') {
+          return jsonResponse([])
+        }
+
         if (path.startsWith('/api/needs/') && path.endsWith('/specs') && method === 'GET') {
           return jsonResponse([])
         }
@@ -138,7 +142,7 @@ describe('NeedList', () => {
       '/api/projects/7/needs',
       expect.objectContaining({ method: 'POST' }),
     )
-    expect(needRow('Brake safely')).toHaveClass('border-neutral-950')
+    expect(needRow('Brake safely')).toHaveClass('border-blue-500')
 
     fireEvent.click(within(needRow('Brake safely')).getByRole('button', { name: 'Edit' }))
     fireEvent.change(screen.getByLabelText('Edit statement 2'), { target: { value: 'Brake firmly' } })
@@ -151,7 +155,7 @@ describe('NeedList', () => {
     )
 
     fireEvent.click(screen.getByText('Stop the vehicle'))
-    expect(needRow('Stop the vehicle')).toHaveClass('border-neutral-950')
+    expect(needRow('Stop the vehicle')).toHaveClass('border-blue-500')
 
     fireEvent.click(within(needRow('Brake firmly')).getByRole('button', { name: 'Delete' }))
 

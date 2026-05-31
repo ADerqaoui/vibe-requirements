@@ -52,7 +52,9 @@ async def test_specs_api_creates_and_lists_only_need_specs(
 
     assert create_response.status_code == 201
     assert create_response.json()["statement"] == "The system shall brake."
+    assert create_response.json()["parent_spec_id"] is None
     assert [item["statement"] for item in list_response.json()] == ["The system shall brake."]
+    assert [item["parent_spec_id"] for item in list_response.json()] == [None]
 
     created_spec = db_session.get(Spec, create_response.json()["id"])
     assert created_spec is not None
