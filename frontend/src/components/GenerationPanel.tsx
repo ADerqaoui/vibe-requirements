@@ -1,14 +1,21 @@
 import { FormEvent, useEffect, useState } from 'react'
-import { generateSpecs } from '../api/generation'
+import { generateChildSpecs, generateSpecs } from '../api/generation'
 import { fetchModels } from '../api/models'
-import { createNeedSpec, fetchNeedSpecs } from '../api/specs'
+import { createChildSpec, createNeedSpec, fetchChildSpecs, fetchNeedSpecs } from '../api/specs'
 import type { GenerationCandidate } from '../types/generation'
 import type { Model } from '../types/model'
 import type { Spec } from '../types/spec'
 import { SpecList } from './SpecList'
 
+export type GenerationParent = {
+  kind: 'need' | 'spec'
+  id: number
+}
+
 type GenerationPanelProps = {
-  needId: number | null
+  needId?: number | null
+  parent?: GenerationParent | null
+  onSelectSpec?: (spec: Spec) => void
 }
 
 function errorMessage(error: unknown): string {
@@ -18,7 +25,19 @@ function errorMessage(error: unknown): string {
   return String(error)
 }
 
-export function GenerationPanel({ needId }: GenerationPanelProps) {
+function parentFromNeedId(needId: number | null | undefined): GenerationParent | null {
+  if (needId === null || needId === undefined) {
+    return null
+  }
+  return { kind: 'need', id: needId }
+}
+
+function parentKey(parent: GenerationParent | null): string {
+  return parent === null ? 'none' : `${parent.kind}:${parent.id}`
+}
+
+export function GenerationPanel({ needId, parent, onSelectSpec }: GenerationPanelProps) {
+  const generationParent = parent ?? parentFromNeedId(needId)
   const [models, setModels] = useState<Model[]>([])
   const [modelId, setModelId] = useState<number | null>(null)
   const [count, setCount] = useState(5)
@@ -40,25 +59,32 @@ export function GenerationPanel({ needId }: GenerationPanelProps) {
   useEffect(() => {
     setCandidates([])
     setSpecs([])
-    if (needId === null) {
+    if (generationParent === null) {
       return
     }
-    fetchNeedSpecs(needId)
+    const loadSpecs =
+      generationParent.kind === 'need'
+        ? fetchNeedSpecs(generationParent.id)
+        : fetchChildSpecs(generationParent.id)
+    loadSpecs
       .then((loadedSpecs) => {
         setSpecs(loadedSpecs)
         setError(null)
       })
       .catch((loadError: unknown) => setError(errorMessage(loadError)))
-  }, [needId])
+  }, [parentKey(generationParent)])
 
   async function handleGenerate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (needId === null || modelId === null) {
+    if (generationParent === null || modelId === null) {
       return
     }
     setIsGenerating(true)
     try {
-      const result = await generateSpecs(needId, { model_id: modelId, count })
+      const result =
+        generationParent.kind === 'need'
+          ? await generateSpecs(generationParent.id, { model_id: modelId, count })
+          : await generateChildSpecs(generationParent.id, { model_id: modelId, count })
       setCandidates(result.candidates)
       setError(null)
     } catch (generateError: unknown) {
@@ -69,15 +95,22 @@ export function GenerationPanel({ needId }: GenerationPanelProps) {
   }
 
   async function handleAccept(candidate: GenerationCandidate) {
-    if (needId === null) {
+    if (generationParent === null) {
       return
     }
     try {
-      await createNeedSpec(needId, { statement: candidate.statement })
+      if (generationParent.kind === 'need') {
+        await createNeedSpec(generationParent.id, { statement: candidate.statement })
+      } else {
+        await createChildSpec(generationParent.id, { statement: candidate.statement })
+      }
       setCandidates((currentCandidates) =>
         currentCandidates.filter((item) => item.index !== candidate.index),
       )
-      const loadedSpecs = await fetchNeedSpecs(needId)
+      const loadedSpecs =
+        generationParent.kind === 'need'
+          ? await fetchNeedSpecs(generationParent.id)
+          : await fetchChildSpecs(generationParent.id)
       setSpecs(loadedSpecs)
       setError(null)
     } catch (acceptError: unknown) {
@@ -91,7 +124,7 @@ export function GenerationPanel({ needId }: GenerationPanelProps) {
     )
   }
 
-  if (needId === null) {
+  if (generationParent === null) {
     return null
   }
 
@@ -155,7 +188,7 @@ export function GenerationPanel({ needId }: GenerationPanelProps) {
       </ul>
 
       <h3 className="mt-5 text-sm font-semibold text-neutral-900">Specs</h3>
-      <SpecList specs={specs} />
+      <SpecList onSelectSpec={onSelectSpec} selectedSpecId={parent?.kind === 'spec' ? parent.id : null} specs={specs} />
     </section>
   )
 }

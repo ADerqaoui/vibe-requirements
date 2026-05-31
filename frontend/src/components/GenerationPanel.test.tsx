@@ -26,16 +26,23 @@ function jsonResponse(body: unknown): Response {
 
 describe('GenerationPanel', () => {
   let specsByNeed: Record<number, Spec[]>
+  let specsBySpec: Record<number, Spec[]>
   let candidatesByNeed: Record<number, GenerationCandidate[]>
+  let candidatesBySpec: Record<number, GenerationCandidate[]>
 
   beforeEach(() => {
     specsByNeed = { 1: [], 2: [] }
+    specsBySpec = { 10: [], 20: [] }
     candidatesByNeed = {
       1: [
         { index: 1, statement: 'The system shall brake.' },
         { index: 2, statement: 'The system shall alert.' },
       ],
       2: [{ index: 1, statement: 'The system shall park.' }],
+    }
+    candidatesBySpec = {
+      10: [{ index: 1, statement: 'The actuator shall clamp.' }],
+      20: [{ index: 1, statement: 'The controller shall trace.' }],
     }
 
     vi.stubGlobal(
@@ -58,6 +65,11 @@ describe('GenerationPanel', () => {
           return jsonResponse({ candidates: candidatesByNeed[needId] ?? [] })
         }
 
+        if (path.startsWith('/api/specs/') && path.endsWith('/generate') && method === 'POST') {
+          const specId = Number(path.replace('/api/specs/', '').replace('/generate', ''))
+          return jsonResponse({ candidates: candidatesBySpec[specId] ?? [] })
+        }
+
         if (path.startsWith('/api/needs/') && path.endsWith('/specs') && method === 'POST') {
           const needId = Number(path.replace('/api/needs/', '').replace('/specs', ''))
           const payload = JSON.parse(String(init?.body)) as { statement: string }
@@ -73,6 +85,29 @@ describe('GenerationPanel', () => {
             },
           ]
           specsByNeed = { ...specsByNeed, [needId]: specs }
+          return jsonResponse(specs[specs.length - 1])
+        }
+
+        if (path.startsWith('/api/specs/') && path.endsWith('/specs') && method === 'GET') {
+          const specId = Number(path.replace('/api/specs/', '').replace('/specs', ''))
+          return jsonResponse(specsBySpec[specId] ?? [])
+        }
+
+        if (path.startsWith('/api/specs/') && path.endsWith('/specs') && method === 'POST') {
+          const specId = Number(path.replace('/api/specs/', '').replace('/specs', ''))
+          const payload = JSON.parse(String(init?.body)) as { statement: string }
+          const specs = [
+            ...(specsBySpec[specId] ?? []),
+            {
+              id: 30,
+              need_id: 1,
+              statement: payload.statement,
+              complexity: null,
+              created_at: '2026-05-31T01:00:00',
+              updated_at: '2026-05-31T01:00:00',
+            },
+          ]
+          specsBySpec = { ...specsBySpec, [specId]: specs }
           return jsonResponse(specs[specs.length - 1])
         }
 
@@ -123,5 +158,50 @@ describe('GenerationPanel', () => {
         expect.objectContaining({ method: 'POST' }),
       ),
     )
+  })
+
+  it('generates and accepts child specs for a selected Spec', async () => {
+    render(<GenerationPanel parent={{ kind: 'spec', id: 10 }} />)
+
+    expect(await screen.findByLabelText('Generation model')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Generate' }))
+    expect(await screen.findByText('The actuator shall clamp.')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Accept' }))
+
+    await waitFor(() =>
+      expect(fetch).toHaveBeenCalledWith(
+        '/api/specs/10/specs',
+        expect.objectContaining({ method: 'POST' }),
+      ),
+    )
+    expect(await screen.findAllByText('The actuator shall clamp.')).toHaveLength(1)
+  })
+
+  it('clears stale candidates on Need-Spec, Spec-Spec, and Spec-Need switches', async () => {
+    const { rerender } = render(<GenerationPanel parent={{ kind: 'need', id: 1 }} />)
+
+    expect(await screen.findByLabelText('Generation model')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Generate' }))
+    expect(await screen.findByText('The system shall brake.')).toBeInTheDocument()
+
+    rerender(<GenerationPanel parent={{ kind: 'spec', id: 10 }} />)
+    await waitFor(() => expect(screen.queryByText('The system shall brake.')).not.toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: 'Generate' }))
+    expect(await screen.findByText('The actuator shall clamp.')).toBeInTheDocument()
+
+    rerender(<GenerationPanel parent={{ kind: 'spec', id: 20 }} />)
+    await waitFor(() =>
+      expect(screen.queryByText('The actuator shall clamp.')).not.toBeInTheDocument(),
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Generate' }))
+    expect(await screen.findByText('The controller shall trace.')).toBeInTheDocument()
+
+    rerender(<GenerationPanel parent={{ kind: 'need', id: 2 }} />)
+    await waitFor(() =>
+      expect(screen.queryByText('The controller shall trace.')).not.toBeInTheDocument(),
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Generate' }))
+    expect(await screen.findByText('The system shall park.')).toBeInTheDocument()
   })
 })

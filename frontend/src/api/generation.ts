@@ -14,3 +14,18 @@ export async function generateSpecs(
   }
   return (await response.json()) as GenerationResult
 }
+
+export async function generateChildSpecs(
+  specId: number,
+  payload: GenerationRequest,
+): Promise<GenerationResult> {
+  const response = await fetch(`/api/specs/${specId}/generate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  if (!response.ok) {
+    throw new Error(`Generation request failed: HTTP ${response.status}`)
+  }
+  return (await response.json()) as GenerationResult
+}

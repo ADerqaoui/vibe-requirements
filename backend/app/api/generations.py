@@ -7,15 +7,21 @@ from app.config import get_settings
 from app.db import get_db
 from app.generation.parser import ParseError
 from app.gateway.base import GatewayError
+from app.models.need import Need
+from app.models.spec import Spec
 from app.schemas.generation import GenerationRequest, GenerationResult
-from app.services.generation_service import GenerationRuntime, generate_specs_for_need
+from app.services.generation_service import (
+    GenerationParentNotFoundError,
+    GenerationRuntime,
+    ParentKind,
+    generate_for_parent,
+)
 from app.services.model_service import ModelNotFoundError, get_model
-from app.services.need_service import NeedNotFoundError, get_need
 
-router = APIRouter(prefix="/needs/{need_id}/generate", tags=["generations"])
+router = APIRouter(tags=["generations"])
 
 
-@router.post("", response_model=GenerationResult)
+@router.post("/needs/{need_id}/generate", response_model=GenerationResult)
 async def generate_specs_route(
     need_id: int,
     payload: GenerationRequest,
@@ -23,11 +29,30 @@ async def generate_specs_route(
     gateway_factory: GatewayFactory = Depends(get_gateway_factory),
 ) -> GenerationResult:
     """Generate child spec candidates from a Need."""
+    return await _generate_specs_for_parent("need", need_id, payload, db, gateway_factory)
+
+
+@router.post("/specs/{spec_id}/generate", response_model=GenerationResult)
+async def generate_child_specs_route(
+    spec_id: int,
+    payload: GenerationRequest,
+    db: Session = Depends(get_db),
+    gateway_factory: GatewayFactory = Depends(get_gateway_factory),
+) -> GenerationResult:
+    """Generate child spec candidates from a Spec."""
+    return await _generate_specs_for_parent("spec", spec_id, payload, db, gateway_factory)
+
+
+async def _generate_specs_for_parent(
+    parent_kind: ParentKind,
+    parent_id: int,
+    payload: GenerationRequest,
+    db: Session,
+    gateway_factory: GatewayFactory,
+) -> GenerationResult:
+    """Generate child spec candidates for either parent route."""
     settings = get_settings()
-    try:
-        need = get_need(db, need_id)
-    except NeedNotFoundError as error:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Need not found") from error
+    _ensure_parent_exists(db, parent_kind, parent_id)
     try:
         model = get_model(db, payload.model_id)
     except ModelNotFoundError as error:
@@ -37,9 +62,10 @@ async def generate_specs_route(
 
     try:
         gateway = gateway_factory(model, settings)
-        return await generate_specs_for_need(
+        return await generate_for_parent(
             db=db,
-            need=need,
+            parent_kind=parent_kind,
+            parent_id=parent_id,
             model=model,
             gateway=gateway,
             count=payload.count,
@@ -48,6 +74,9 @@ async def generate_specs_route(
                 timeout_seconds=_timeout_for_provider(model.provider, settings),
             ),
         )
+    except GenerationParentNotFoundError as error:
+        detail = "Need not found" if parent_kind == "need" else "Spec not found"
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=detail) from error
     except ParseError as error:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(error)) from error
     except GatewayError as error:
@@ -62,3 +91,11 @@ def _timeout_for_provider(provider: str, settings) -> float:
     if provider == "ollama":
         return settings.ollama_timeout_seconds
     return settings.cloud_timeout_seconds
+
+
+def _ensure_parent_exists(db: Session, parent_kind: ParentKind, parent_id: int) -> None:
+    """Raise a route-level 404 before model or gateway checks."""
+    model_class = Need if parent_kind == "need" else Spec
+    if db.get(model_class, parent_id) is None:
+        detail = "Need not found" if parent_kind == "need" else "Spec not found"
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=detail)
