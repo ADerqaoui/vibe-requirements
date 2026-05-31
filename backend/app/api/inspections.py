@@ -80,6 +80,7 @@ def _inspection_out(row: SpecInspection) -> SpecInspectionOut:
         spec_id=row.spec_id,
         model_id=row.model_id,
         findings=json.loads(row.findings),
+        summary=row.summary,
         passes=row.passes,
         created_at=row.created_at,
     )

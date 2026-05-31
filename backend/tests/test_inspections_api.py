@@ -72,7 +72,8 @@ def findings_text(note: str) -> str:
         "- Measurability: FAIL — lacks threshold\n"
         "- Testability: PASS — testable\n"
         "- Atomicity: PASS — one behavior\n"
-        "- Ambiguity-free: PASS — no ambiguity"
+        "- Ambiguity-free: PASS — no ambiguity\n"
+        f"Summary for {note}"
     )
 
 
@@ -99,12 +100,29 @@ async def test_inspection_api_persists_and_lists_newest_first(
     api_app.dependency_overrides[get_gateway_factory] = second_gateway_factory
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         second = await client.post(f"/api/specs/{spec_id}/inspect", json={"model_id": model_id})
+
+    first_row = db_session.get(SpecInspection, first.json()["id"])
+    second_row = db_session.get(SpecInspection, second.json()["id"])
+    assert first_row is not None
+    assert second_row is not None
+    first_row.created_at = "2030-01-01T00:00:00"
+    second_row.created_at = "2020-01-01T00:00:00"
+    db_session.commit()
+
+    need_id = db_session.get(Spec, spec_id).need_id
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
         listed = await client.get(f"/api/specs/{spec_id}/inspections")
+        spec_tree = await client.get(f"/api/needs/{need_id}/spec-tree")
 
     assert first.status_code == 200
     assert second.status_code == 200
+    assert set(first.json().keys()) == {"id", "spec_id", "model_id", "findings", "summary", "passes", "created_at"}
+    assert set(listed.json()[0].keys()) == {"id", "spec_id", "model_id", "findings", "summary", "passes", "created_at"}
     assert second.json()["findings"]["criteria"][0]["note"] == "second"
-    assert [item["id"] for item in listed.json()] == [second.json()["id"], first.json()["id"]]
+    assert first.json()["summary"] == "Summary for first"
+    assert listed.json()[0]["summary"] == first_row.summary
+    assert [item["id"] for item in listed.json()] == [first.json()["id"], second.json()["id"]]
+    assert spec_tree.json()[0]["latest_inspection_id"] == listed.json()[0]["id"]
 
 
 @pytest.mark.asyncio

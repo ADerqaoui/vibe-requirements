@@ -30,5 +30,6 @@ class SpecInspectionOut(BaseModel):
     spec_id: int
     model_id: int
     findings: InspectionFindings
+    summary: str | None = None
     passes: int = Field(ge=1)
     created_at: str

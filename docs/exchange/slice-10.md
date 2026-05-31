@@ -44,6 +44,18 @@
   | `NeedList.tsx` is under 200 lines and Need row DOM remains regression-safe after split. | `wc -l frontend/src/components/NeedList.tsx` shows 191; `NeedRow.test.tsx` DOM/action regression tests | Yes |
   | Backend pytest and frontend pnpm test pass. | Commands listed above | Yes |
 
+- [Codex — 2026-05-31] Applied slice 10 follow-up fixes from QA.
+
+  Built:
+  - Added top-level `summary` to `SpecInspectionOut` and mapped it from `spec_inspections.summary`.
+  - Extended inspection API tests to assert exact response keys: `id`, `spec_id`, `model_id`, `findings`, `summary`, `passes`, `created_at`.
+  - Aligned `latest_inspection_ids` ordering with `GET /api/specs/{id}/inspections`: `created_at DESC, id DESC`, first row per Spec.
+  - Added coverage proving spec-tree `latest_inspection_id` matches the first row returned by the newest-first inspections list.
+  - No schema changes.
+
+  Verification:
+  - `.venv/bin/pytest` from `backend/`: 102 passed, 74 warnings.
+
 ## ChatGPT — QA review
 - [ChatGPT — YYYY-MM-DD] ...
 
