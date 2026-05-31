@@ -113,9 +113,6 @@
 - [User — YYYY-MM-DD] decision — rationale
 
 ## User — verification
-- [User — 2026-05-31] F2 `pnpm test`: <PASTE pass/fail summary, e.g. "6 passed">.
-- [User — 2026-05-31] F3 real Ollama smoke: POST /api/models/<ID>/complete returned text + tokens, cost_sek 0, status success. Response: text='Sure thing!', in_tokens=35, out_tokens=4, cost_sek=0.0, duration_ms=129. call_logs row written with status=success, cost_sek=0.
+- [User — 2026-05-31] Frontend `pnpm test`: 7 passed across 4 files, including `ModelTester.test.tsx`.
+- [User — 2026-05-31] Real Ollama smoke via the live completion endpoint `/api/models/{model_id}/complete` against an enabled local model: returned text='Sure thing!', in_tokens=35, out_tokens=4, cost_sek=0.0, duration_ms=129. The corresponding `call_logs` row was written with status='success', cost_sek=0.0, matching token counts, and the rendered prompt.
 
-## User — verification
-- [User — 2026-05-31] F2 pnpm test: 7 passed (4 files), incl. ModelTester.test.tsx.
-- [User — 2026-05-31] F3 real Ollama smoke: POST /api/models/<ID>/complete returned text + tokens, cost_sek 0, status success. Response: text='Sure thing!', in_tokens=35, out_tokens=4, cost_sek=0.0, duration_ms=129. call_logs row written with status=success, cost_sek=0.
