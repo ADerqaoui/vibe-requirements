@@ -43,6 +43,7 @@
   | `POST /api/models/{id}/complete`: 200 with result; 404 missing; 409 disabled; 502 on gateway failure. | `test_complete_api_returns_result_and_logs`, `test_complete_api_missing_and_disabled`, `test_complete_api_gateway_failure_returns_502_and_logs` | Yes |
   | Frontend: pick a model, send a prompt, see response + tokens + cost + duration. | `ModelTester.test.tsx` added; not executed here because Node/pnpm are unavailable. | Partial |
   | `pytest` + `pnpm test` pass; handoff includes acceptance-to-test mapping. | `pytest`: 40 passed. `pnpm test`: blocked by missing Node/pnpm. This handoff includes the mapping. | Partial |
+- [Codex — 2026-05-31] Follow-up per user request: added API coverage for whitespace-only prompts on `POST /api/models/{id}/complete` asserting `422`, and documented the dev-only manual Ollama completion curl smoke command in `README.md`. Verification: `backend/.venv/bin/pytest` from `backend/` collected 41 tests and passed (`41 passed, 29 warnings`).
 
 ## ChatGPT — QA review
 - [ChatGPT — YYYY-MM-DD] ...

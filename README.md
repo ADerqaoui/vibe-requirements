@@ -28,6 +28,14 @@ Full spec in `requirements.md` and `architecture.md`.
 - In VS Code, forward ports 8000 and 5173 to your laptop.
 - Open http://localhost:5173 — the page shows backend / DB / Ollama health.
 
+## Dev smoke: manual Ollama completion
+
+Dev-only, not CI. With the backend running and an enabled Ollama model id:
+
+    curl -X POST http://localhost:8000/api/models/<model_id>/complete \
+      -H "Content-Type: application/json" \
+      -d '{"prompt":"Reply with exactly: ok"}'
+
 ## Deployment (later slice)
 `docker-compose.yml` builds backend + frontend and serves on 8080.
 Ollama stays on the host (not containerized).

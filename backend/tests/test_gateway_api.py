@@ -98,6 +98,29 @@ async def test_complete_api_missing_and_disabled(
 
 
 @pytest.mark.asyncio
+async def test_complete_api_blank_prompt_returns_422(
+    api_app: FastAPI,
+    db_session: Session,
+) -> None:
+    """Blank prompts are rejected before gateway execution."""
+    model = Model(provider="ollama", name="qwen", ollama_tag="qwen", tier="mid", enabled=1)
+    db_session.add(model)
+    db_session.flush()
+    model_id = model.id
+    db_session.commit()
+    use_db_session(api_app, db_session)
+
+    transport = ASGITransport(app=api_app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post(
+            f"/api/models/{model_id}/complete",
+            json={"prompt": "   "},
+        )
+
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
 async def test_complete_api_gateway_failure_returns_502_and_logs(
     api_app: FastAPI,
     db_session: Session,
