@@ -40,6 +40,7 @@
   | Parser handles numbered, bulleted, and bare outputs and skips headers; zero parsed -> clear error. | `test_generation_parser.py` | Yes |
   | `pytest` + `pnpm test` pass; handoff includes acceptance-to-test mapping. | `pytest`: 54 passed. `pnpm test`: 8 passed. This handoff includes the mapping. | Yes |
 
+- [Codex — 2026-05-31] Follow-up for Claude F1/F2/F3: `GenerationPanel` now clears candidates and specs on every `needId` change before loading the selected Need's Specs; `GenerationPanel.test.tsx` covers switching from Need 1 to Need 2 with stale candidates present and verifies Accept posts to `/api/needs/2/specs`; `create_spec_for_need` now explicitly sets `status="pending"` and its docstring states pending lifecycle status; `test_specs_api_creates_and_lists_only_need_specs` asserts the stored status is `pending`. Verification: `backend/.venv/bin/pytest` passed (`54 passed, 37 warnings`); `PATH="$HOME/.nvm/versions/node/v24.16.0/bin:$PATH" pnpm test` passed (`9 passed`).
 ## ChatGPT — QA review
 - [ChatGPT — YYYY-MM-DD] ...
 

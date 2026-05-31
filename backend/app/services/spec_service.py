@@ -22,7 +22,7 @@ def list_specs_for_need(db: Session, need_id: int) -> list[Spec]:
 
 
 def create_spec_for_need(db: Session, need_id: int, statement: str) -> Spec:
-    """Create one accepted child spec under a Need."""
+    """Persist one generated child spec under a Need with pending lifecycle status."""
     need = get_need(db, need_id)
     layer = _default_spec_layer(db)
     spec = Spec(
@@ -30,6 +30,7 @@ def create_spec_for_need(db: Session, need_id: int, statement: str) -> Spec:
         parent_spec_id=None,
         layer_id=layer.id,
         text=statement,
+        status="pending",
         source="ai",
     )
     db.add(spec)

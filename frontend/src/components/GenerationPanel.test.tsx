@@ -25,15 +25,18 @@ function jsonResponse(body: unknown): Response {
 }
 
 describe('GenerationPanel', () => {
-  let specs: Spec[]
-  let candidates: GenerationCandidate[]
+  let specsByNeed: Record<number, Spec[]>
+  let candidatesByNeed: Record<number, GenerationCandidate[]>
 
   beforeEach(() => {
-    specs = []
-    candidates = [
-      { index: 1, statement: 'The system shall brake.' },
-      { index: 2, statement: 'The system shall alert.' },
-    ]
+    specsByNeed = { 1: [], 2: [] }
+    candidatesByNeed = {
+      1: [
+        { index: 1, statement: 'The system shall brake.' },
+        { index: 2, statement: 'The system shall alert.' },
+      ],
+      2: [{ index: 1, statement: 'The system shall park.' }],
+    }
 
     vi.stubGlobal(
       'fetch',
@@ -45,26 +48,30 @@ describe('GenerationPanel', () => {
           return jsonResponse(models)
         }
 
-        if (path === '/api/needs/1/specs' && method === 'GET') {
-          return jsonResponse(specs)
+        if (path.startsWith('/api/needs/') && path.endsWith('/specs') && method === 'GET') {
+          const needId = Number(path.replace('/api/needs/', '').replace('/specs', ''))
+          return jsonResponse(specsByNeed[needId] ?? [])
         }
 
-        if (path === '/api/needs/1/generate' && method === 'POST') {
-          return jsonResponse({ candidates })
+        if (path.startsWith('/api/needs/') && path.endsWith('/generate') && method === 'POST') {
+          const needId = Number(path.replace('/api/needs/', '').replace('/generate', ''))
+          return jsonResponse({ candidates: candidatesByNeed[needId] ?? [] })
         }
 
-        if (path === '/api/needs/1/specs' && method === 'POST') {
+        if (path.startsWith('/api/needs/') && path.endsWith('/specs') && method === 'POST') {
+          const needId = Number(path.replace('/api/needs/', '').replace('/specs', ''))
           const payload = JSON.parse(String(init?.body)) as { statement: string }
-          specs = [
-            ...specs,
+          const specs = [
+            ...(specsByNeed[needId] ?? []),
             {
               id: 10,
-              need_id: 1,
+              need_id: needId,
               statement: payload.statement,
               created_at: '2026-05-31T01:00:00',
               updated_at: '2026-05-31T01:00:00',
             },
           ]
+          specsByNeed = { ...specsByNeed, [needId]: specs }
           return jsonResponse(specs[specs.length - 1])
         }
 
@@ -93,5 +100,27 @@ describe('GenerationPanel', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Reject' }))
     await waitFor(() => expect(screen.queryByText('The system shall alert.')).not.toBeInTheDocument())
+  })
+
+  it('clears stale candidates when the selected Need changes', async () => {
+    const { rerender } = render(<GenerationPanel needId={1} />)
+
+    expect(await screen.findByLabelText('Generation model')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Generate' }))
+    expect(await screen.findByText('The system shall brake.')).toBeInTheDocument()
+
+    rerender(<GenerationPanel needId={2} />)
+
+    await waitFor(() => expect(screen.queryByText('The system shall brake.')).not.toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: 'Generate' }))
+    expect(await screen.findByText('The system shall park.')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Accept' }))
+    await waitFor(() =>
+      expect(fetch).toHaveBeenCalledWith(
+        '/api/needs/2/specs',
+        expect.objectContaining({ method: 'POST' }),
+      ),
+    )
   })
 })

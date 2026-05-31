@@ -38,9 +38,9 @@ export function GenerationPanel({ needId }: GenerationPanelProps) {
   }, [])
 
   useEffect(() => {
+    setCandidates([])
+    setSpecs([])
     if (needId === null) {
-      setCandidates([])
-      setSpecs([])
       return
     }
     fetchNeedSpecs(needId)

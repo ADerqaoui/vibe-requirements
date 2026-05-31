@@ -5,13 +5,17 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy.orm import Session
 
 from app.models.layer import Layer
+from app.models.model import Model
 from app.models.need import Need
+from app.models.prompt import Prompt
 from app.models.project import Project
 from app.models.spec import Spec
 
 
 def seed_need_with_layer(db_session: Session) -> tuple[int, int]:
     """Seed two Needs and the default Spec layer."""
+    Model.__table__
+    Prompt.__table__
     project = Project(name="Demo")
     layer = Layer(name="System Requirement", kind="cross_cutting", sort_order=10)
     db_session.add_all([project, layer])
@@ -49,6 +53,10 @@ async def test_specs_api_creates_and_lists_only_need_specs(
     assert create_response.status_code == 201
     assert create_response.json()["statement"] == "The system shall brake."
     assert [item["statement"] for item in list_response.json()] == ["The system shall brake."]
+
+    created_spec = db_session.get(Spec, create_response.json()["id"])
+    assert created_spec is not None
+    assert created_spec.status == "pending"
 
 
 @pytest.mark.asyncio
