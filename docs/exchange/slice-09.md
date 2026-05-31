@@ -79,3 +79,6 @@
 
 ## User — decisions
 - [User — YYYY-MM-DD] decision — rationale
+
+## Claude — final conformance
+- [Claude — 2026-05-31] APPROVE — UX fix correctly decouples tree data from selected parent: the recursive /api/needs/{id}/spec-tree endpoint feeds a stable SpecList while selectedParent drives the Generate/Accept target with a visible highlight; Accept refetches the tree so new children appear nested in place. SpecOut now exposes parent_spec_id and status (API observability). Test coverage: integrated nested-rendering + selection-without-data-swap + cross-kind stale-candidate clearing. F2 (stale PR body) housekeeping fixed via gh pr edit. F3 (NeedList lines) deferred — pair with the next UI-heavy slice (inspector) to extract Need row/edit controls. Design baseline going forward: /api/needs/{id}/spec-tree is the canonical tree shape; later slices (inspector, blacklist, export tree views) should reuse it rather than introducing competing tree-state patterns.
