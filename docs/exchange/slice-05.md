@@ -46,13 +46,72 @@
 - [Codex — 2026-05-31] Follow-up per user request: added API coverage for whitespace-only prompts on `POST /api/models/{id}/complete` asserting `422`, and documented the dev-only manual Ollama completion curl smoke command in `README.md`. Verification: `backend/.venv/bin/pytest` from `backend/` collected 41 tests and passed (`41 passed, 29 warnings`).
 
 ## ChatGPT — QA review
-- [ChatGPT — YYYY-MM-DD] ...
+- [ChatGPT — 2026-05-31] Verdict: BLOCK.
+
+  Findings:
+
+  1. Category: Risk
+     Severity: major
+     Location: PR #4 status / GitHub metadata
+     What's wrong and why it matters: The PR is still marked as a draft. Draft status usually means the implementer has not declared the work ready for final review/merge. Even though the branch is clean against `main` and GitHub reports it as mergeable, QA should not approve a draft PR as merge-ready.
+     Suggested check or fix: Mark the PR ready for review only after the implementer confirms the slice is final and all required validation is complete.
+
+  2. Category: Missing test
+     Severity: major
+     Location: `docs/exchange/slice-05.md` — Codex handoff / Verification
+     What's wrong and why it matters: Slice 05 acceptance requires `pytest` and `pnpm test` to pass. The handoff says backend `pytest` passed, but `pnpm test` could not run because Node/pnpm are unavailable in the environment. This leaves the frontend `ModelTester` acceptance path unverified by executed tests.
+     Suggested check or fix: Run `pnpm test` in an environment with Node/pnpm installed and record the result in the handoff. If it fails, fix the frontend tests before requesting approval.
+
+  3. Category: Missing test
+     Severity: major
+     Location: `docs/exchange/slice-05.md` — Acceptance-to-test mapping; Slice 05 acceptance criterion for real Ollama prompt
+     What's wrong and why it matters: The handoff marks the real enabled-Ollama completion acceptance as only partially covered. Slice 05 explicitly requires a real prompt to an enabled Ollama model to return text and token counts and write a `call_logs` success row with local cost zero. The PR includes mocked/deterministic coverage, which is good, but the real-stack acceptance path was not executed because the runtime DB had no enabled Ollama model.
+     Suggested check or fix: Run one controlled local manual completion against an enabled Ollama model in a disposable/dev DB, then verify the response and the `call_logs` row. Record the exact smoke result in the handoff. Do not mutate production data.
+
+  4. Category: Missing test
+     Severity: minor
+     Location: `backend/tests/test_gateway_api.py` / `backend/app/schemas/completion.py`
+     What's wrong and why it matters: The completion request schema trims and rejects blank prompts, but the API tests do not directly cover blank/whitespace prompt rejection. This is not a core slice acceptance item, but it is an important input-validation edge case for a public LAN endpoint.
+     Suggested check or fix: Add an API test for `POST /api/models/{id}/complete` with `"prompt": "   "` and assert `422`.
+
+  5. Category: Risk
+     Severity: minor
+     Location: `frontend/src/components/SettingsPanel.tsx`
+     What's wrong and why it matters: `SettingsPanel.tsx` is now 228 lines and continues to grow as more model/gateway behavior is added. It remains below the hard 300-line split threshold, but above the project convention target of 200 lines and now includes the `ModelTester` wiring in addition to model/settings CRUD.
+     Suggested check or fix: No immediate blocker by itself. Consider splitting model registry, settings, and tester sections before router/model-selection behavior grows further.
+
+  Things that look fine:
+
+  * The Slice 05 branch is clean against current `main`: it is ahead by two commits and not behind.
+  * The diff appears scoped to the local/Ollama gateway path, gateway service, completion API, call logging, frontend tester, tests, and Slice 05 docs.
+  * No schema or Alembic migration files appear in the Slice 05 delta.
+  * Cloud providers intentionally return `GatewayError("adapter not implemented")`, matching the slice.
+  * The Ollama adapter uses mocked HTTP tests for response parsing and malformed payload handling.
+  * Service tests cover success logging, frozen cost/fx behavior, and failure logging.
+  * API tests cover 200 success, 404 missing model, 409 disabled model, and 502 gateway failure.
+  * I did not see `.env`, database dumps, SQLite files, SQL dumps, or committed secret material in the reviewed Slice 05 delta.
+  * I did not see out-of-scope generation, classification, inspector, blacklist, prompt-registry behavior, or router auto-selection implemented.
+
+  Design concerns for the architect:
+
+  1. Prompt logging is implemented as storing the rendered prompt in `call_logs.rendered_prompt`, which matches the slice, but this will become sensitive project data as real requirements are entered. The architect may want a later explicit retention/privacy rule before backups/export are added.
+  2. The local real-stack acceptance step needs a repeatable dev-only procedure. The slice asks for a real Ollama path, but deterministic CI should not depend on a live model. A documented smoke-test command or fixture would reduce ambiguity.
+
+  Open questions:
+
+  * [ChatGPT — 2026-05-31] For the User/Codex: Should PR #4 remain blocked until `pnpm test` is run and recorded?
+  * [ChatGPT — 2026-05-31] For the User/Codex: Should the real enabled-Ollama smoke test be required before marking Slice 05 ready for merge?
+
 
 ## Claude — conformance review & design notes
-- [Claude — YYYY-MM-DD] ...
+- [Claude — 2026-05-31] APPROVE on substance — verified gateway service (logs success+failure, frozen cost/fx), completion schema (blank→422 implemented), clean ahead-only delta, all 5 gateway test files present. Concur with ChatGPT: BLOCK is verification gaps, not code. F2 (pnpm test) and F3 (real Ollama smoke) to be run on the server and recorded; F4 (blank-prompt API test) + DC2 (documented dev smoke) as a tiny followup; F5 (SettingsPanel split) deferred. DC1 (rendered_prompt retention) deferred to the export/backup slice.
 
 ## Open questions
 - [Author — YYYY-MM-DD] Q ...   →   [Author — YYYY-MM-DD] A ...
 
 ## User — decisions
 - [User — YYYY-MM-DD] decision — rationale
+
+## User — verification
+- [User — 2026-05-31] F2 `pnpm test`: <PASTE pass/fail summary, e.g. "6 passed">.
+- [User — 2026-05-31] F3 real Ollama smoke: POST /api/models/<ID>/complete returned text + tokens, cost_sek 0, status success. Response: <PASTE the JSON>.
