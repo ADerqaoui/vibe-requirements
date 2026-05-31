@@ -38,6 +38,8 @@
   | Complexity tag appears only when `spec.complexity` is non-null. | `test_render_complexity_only_when_present` | Yes |
   | `pytest` + `pnpm test` pass; handoff includes acceptance-to-test mapping. | `pytest`: 64 passed. `pnpm test`: 11 passed. This handoff includes the mapping. | Yes |
 
+- [Codex — 2026-05-31] Follow-up: added `test_export_markdown_renders_grandchild_heading_levels` to cover Project -> Need -> root Spec -> child Spec -> grandchild Spec heading depth as `###`, `####`, and `#####`. F3 (Markdown escaping for user-authored text) is intentionally deferred to a later export-hardening slice; slice 08 ships raw Markdown text per scope for LAN/local use only. Verification: `.venv/bin/pytest` from `backend/` passed, 65 tests passed with 45 warnings.
+
 ## ChatGPT — QA review
 - [ChatGPT — YYYY-MM-DD] ...
 

@@ -109,3 +109,53 @@ def test_render_complexity_only_when_present(db_session: Session) -> None:
     assert rendered.count("**Complexity:**") == 2
     assert "**Complexity:** 3" in rendered
     assert "**Complexity:** 5" in rendered
+
+
+def test_export_markdown_renders_grandchild_heading_levels(
+    db_session: Session,
+) -> None:
+    """Recursive Spec headings increase deterministically by depth."""
+    Model.__table__
+    Prompt.__table__
+    project = Project(name="Nested Export")
+    layer = Layer(name="System Requirement", kind="cross_cutting", sort_order=10)
+    db_session.add_all([project, layer])
+    db_session.flush()
+    need = Need(project_id=project.id, statement="Nested need")
+    db_session.add(need)
+    db_session.flush()
+    root = Spec(
+        need_id=need.id,
+        layer_id=layer.id,
+        text="Root spec",
+        source="ai",
+    )
+    db_session.add(root)
+    db_session.flush()
+    child = Spec(
+        need_id=need.id,
+        parent_spec_id=root.id,
+        layer_id=layer.id,
+        text="Child spec",
+        source="ai",
+    )
+    db_session.add(child)
+    db_session.flush()
+    grandchild = Spec(
+        need_id=need.id,
+        parent_spec_id=child.id,
+        layer_id=layer.id,
+        text="Grandchild spec",
+        source="ai",
+    )
+    db_session.add(grandchild)
+    db_session.commit()
+
+    rendered = render_project_markdown(db_session, project.id)
+
+    headings = [line for line in rendered.splitlines() if "Spec:" in line]
+    assert headings == [
+        "### Spec: Root spec",
+        "#### Spec: Child spec",
+        "##### Spec: Grandchild spec",
+    ]
