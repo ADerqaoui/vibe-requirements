@@ -1,0 +1,78 @@
+"""Specs API tests."""
+import pytest
+from fastapi import FastAPI
+from httpx import ASGITransport, AsyncClient
+from sqlalchemy.orm import Session
+
+from app.models.layer import Layer
+from app.models.model import Model
+from app.models.need import Need
+from app.models.prompt import Prompt
+from app.models.project import Project
+from app.models.spec import Spec
+
+
+def seed_need_with_layer(db_session: Session) -> tuple[int, int]:
+    """Seed two Needs and the default Spec layer."""
+    Model.__table__
+    Prompt.__table__
+    project = Project(name="Demo")
+    layer = Layer(name="System Requirement", kind="cross_cutting", sort_order=10)
+    db_session.add_all([project, layer])
+    db_session.flush()
+    need = Need(project_id=project.id, statement="Stop safely")
+    other_need = Need(project_id=project.id, statement="Accelerate safely")
+    db_session.add_all([need, other_need])
+    db_session.flush()
+    need_id = need.id
+    other_need_id = other_need.id
+    db_session.commit()
+    return need_id, other_need_id
+
+
+@pytest.mark.asyncio
+async def test_specs_api_creates_and_lists_only_need_specs(
+    api_app: FastAPI,
+    db_session: Session,
+) -> None:
+    """Specs can be accepted under a Need and listed by Need."""
+    need_id, other_need_id = seed_need_with_layer(db_session)
+    layer_id = db_session.query(Layer).filter(Layer.name == "System Requirement").one().id
+    other_spec = Spec(need_id=other_need_id, layer_id=layer_id, text="Other", source="ai")
+    db_session.add(other_spec)
+    db_session.commit()
+
+    transport = ASGITransport(app=api_app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        create_response = await client.post(
+            f"/api/needs/{need_id}/specs",
+            json={"statement": "The system shall brake."},
+        )
+        list_response = await client.get(f"/api/needs/{need_id}/specs")
+
+    assert create_response.status_code == 201
+    assert create_response.json()["statement"] == "The system shall brake."
+    assert [item["statement"] for item in list_response.json()] == ["The system shall brake."]
+
+    created_spec = db_session.get(Spec, create_response.json()["id"])
+    assert created_spec is not None
+    assert created_spec.status == "pending"
+
+
+@pytest.mark.asyncio
+async def test_specs_api_missing_need_and_blank_statement(
+    api_app: FastAPI,
+    db_session: Session,
+) -> None:
+    """Specs API returns 404 for missing Need and 422 for blank statements."""
+    need_id, _other_need_id = seed_need_with_layer(db_session)
+
+    transport = ASGITransport(app=api_app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        missing_create = await client.post("/api/needs/999/specs", json={"statement": "Spec"})
+        missing_list = await client.get("/api/needs/999/specs")
+        blank_create = await client.post(f"/api/needs/{need_id}/specs", json={"statement": "   "})
+
+    assert missing_create.status_code == 404
+    assert missing_list.status_code == 404
+    assert blank_create.status_code == 422

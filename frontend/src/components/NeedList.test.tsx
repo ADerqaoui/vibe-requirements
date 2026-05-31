@@ -54,6 +54,14 @@ describe('NeedList', () => {
           return jsonResponse(needs)
         }
 
+        if (path === '/api/models' && method === 'GET') {
+          return jsonResponse([])
+        }
+
+        if (path.startsWith('/api/needs/') && path.endsWith('/specs') && method === 'GET') {
+          return jsonResponse([])
+        }
+
         if (path === '/api/projects/7/needs' && method === 'POST') {
           const payload = JSON.parse(String(init?.body)) as NeedRequestPayload
           const need = {
