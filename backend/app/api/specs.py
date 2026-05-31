@@ -11,6 +11,7 @@ from app.services.spec_service import (
     SpecNotFoundError,
     create_spec_for_parent_spec,
     create_spec_for_need,
+    latest_inspection_ids,
     list_full_spec_tree_for_need,
     list_children_of_spec,
     list_specs_for_need,
@@ -23,7 +24,9 @@ router = APIRouter(tags=["specs"])
 async def list_specs_route(need_id: int, db: Session = Depends(get_db)) -> list[SpecOut]:
     """List specs under a Need."""
     try:
-        return [_spec_out(spec) for spec in list_specs_for_need(db, need_id)]
+        specs = list_specs_for_need(db, need_id)
+        latest_ids = latest_inspection_ids(db, [spec.id for spec in specs])
+        return [_spec_out(spec, latest_ids.get(spec.id)) for spec in specs]
     except NeedNotFoundError as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Need not found") from error
 
@@ -32,7 +35,9 @@ async def list_specs_route(need_id: int, db: Session = Depends(get_db)) -> list[
 async def list_spec_tree_route(need_id: int, db: Session = Depends(get_db)) -> list[SpecTreeNode]:
     """List the full nested Spec tree under a Need."""
     try:
-        return _spec_tree(list_full_spec_tree_for_need(db, need_id))
+        specs = list_full_spec_tree_for_need(db, need_id)
+        latest_ids = latest_inspection_ids(db, [spec.id for spec in specs])
+        return _spec_tree(specs, latest_ids)
     except NeedNotFoundError as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Need not found") from error
 
@@ -45,7 +50,7 @@ async def create_spec_route(
 ) -> SpecOut:
     """Create a spec under a Need."""
     try:
-        return _spec_out(create_spec_for_need(db, need_id, payload.statement))
+        return _spec_out(create_spec_for_need(db, need_id, payload.statement), None)
     except NeedNotFoundError as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Need not found") from error
     except SpecLayerNotFoundError as error:
@@ -59,7 +64,9 @@ async def create_spec_route(
 async def list_child_specs_route(spec_id: int, db: Session = Depends(get_db)) -> list[SpecOut]:
     """List direct child Specs under a Spec."""
     try:
-        return [_spec_out(spec) for spec in list_children_of_spec(db, spec_id)]
+        specs = list_children_of_spec(db, spec_id)
+        latest_ids = latest_inspection_ids(db, [spec.id for spec in specs])
+        return [_spec_out(spec, latest_ids.get(spec.id)) for spec in specs]
     except SpecNotFoundError as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Spec not found") from error
 
@@ -72,7 +79,7 @@ async def create_child_spec_route(
 ) -> SpecOut:
     """Create a child Spec under a Spec."""
     try:
-        return _spec_out(create_spec_for_parent_spec(db, spec_id, payload.statement))
+        return _spec_out(create_spec_for_parent_spec(db, spec_id, payload.statement), None)
     except SpecNotFoundError as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Spec not found") from error
     except SpecLayerNotFoundError as error:
@@ -82,7 +89,7 @@ async def create_child_spec_route(
         ) from error
 
 
-def _spec_out(spec: Spec) -> SpecOut:
+def _spec_out(spec: Spec, latest_inspection_id: int | None) -> SpecOut:
     """Map ORM fields to the slice API shape."""
     return SpecOut(
         id=spec.id,
@@ -91,12 +98,13 @@ def _spec_out(spec: Spec) -> SpecOut:
         statement=spec.text,
         complexity=spec.complexity,
         status=spec.status,
+        latest_inspection_id=latest_inspection_id,
         created_at=spec.created_at,
         updated_at=spec.updated_at,
     )
 
 
-def _spec_tree(specs: list[Spec]) -> list[SpecTreeNode]:
+def _spec_tree(specs: list[Spec], latest_ids: dict[int, int]) -> list[SpecTreeNode]:
     """Build a recursively nested Spec tree from id-ordered rows."""
     nodes = {
         spec.id: SpecTreeNode(
@@ -105,6 +113,7 @@ def _spec_tree(specs: list[Spec]) -> list[SpecTreeNode]:
             complexity=spec.complexity,
             status=spec.status,
             parent_spec_id=spec.parent_spec_id,
+            latest_inspection_id=latest_ids.get(spec.id),
             children=[],
         )
         for spec in specs

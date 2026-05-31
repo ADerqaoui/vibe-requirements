@@ -28,6 +28,7 @@ class SpecOut(BaseModel):
     statement: str
     complexity: int | None
     status: str
+    latest_inspection_id: int | None = None
     created_at: str
     updated_at: str
 
@@ -40,4 +41,5 @@ class SpecTreeNode(BaseModel):
     complexity: int | None
     status: str
     parent_spec_id: int | None
+    latest_inspection_id: int | None = None
     children: list["SpecTreeNode"]

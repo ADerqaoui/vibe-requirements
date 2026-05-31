@@ -92,6 +92,7 @@ describe('GenerationPanel', () => {
               complexity: null,
               status: 'pending',
               parent_spec_id: null,
+              latest_inspection_id: null,
               children: [],
             },
           ]
@@ -108,6 +109,7 @@ describe('GenerationPanel', () => {
             complexity: null,
             status: 'pending',
             parent_spec_id: specId,
+            latest_inspection_id: null,
             children: [],
           }
           specTreeByNeed = { ...specTreeByNeed, 1: appendChild(specTreeByNeed[1] ?? [], specId, child) }
@@ -118,6 +120,7 @@ describe('GenerationPanel', () => {
             statement: payload.statement,
             complexity: null,
             status: 'pending',
+            latest_inspection_id: null,
             created_at: '2026-05-31T01:00:00',
             updated_at: '2026-05-31T01:00:00',
           })
@@ -146,7 +149,7 @@ describe('GenerationPanel', () => {
     await waitFor(() => expect(fetch).toHaveBeenCalledWith('/api/needs/1/spec-tree'))
     expect(await screen.findAllByText('The system shall brake.')).toHaveLength(1)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Reject' }))
+    fireEvent.click(screen.getAllByRole('button', { name: 'Reject' })[0])
     await waitFor(() => expect(screen.queryByText('The system shall alert.')).not.toBeInTheDocument())
   })
 
@@ -163,7 +166,7 @@ describe('GenerationPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Generate' }))
     expect(await screen.findByText('The system shall park.')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Accept' }))
+    fireEvent.click(screen.getAllByRole('button', { name: 'Accept' })[0])
     await waitFor(() =>
       expect(fetch).toHaveBeenCalledWith(
         '/api/needs/2/specs',
@@ -179,7 +182,7 @@ describe('GenerationPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Generate' }))
     expect(await screen.findByText('The actuator shall clamp.')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Accept' }))
+    fireEvent.click(screen.getAllByRole('button', { name: 'Accept' })[0])
 
     await waitFor(() =>
       expect(fetch).toHaveBeenCalledWith(
@@ -201,6 +204,7 @@ describe('GenerationPanel', () => {
           complexity: null,
           status: 'pending',
           parent_spec_id: null,
+          latest_inspection_id: null,
           children: [
             {
               id: 20,
@@ -208,6 +212,7 @@ describe('GenerationPanel', () => {
               complexity: null,
               status: 'pending',
               parent_spec_id: 10,
+              latest_inspection_id: null,
               children: [],
             },
           ],
@@ -257,7 +262,7 @@ describe('GenerationPanel', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Generate' }))
     expect(await screen.findByText('The controller shall trace.')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Accept' }))
+    fireEvent.click(screen.getAllByRole('button', { name: 'Accept' })[0])
 
     await waitFor(() => expect(screen.getAllByText('The controller shall trace.')).toHaveLength(1))
     expect(screen.getByText('Child spec').closest('li')).toContainElement(

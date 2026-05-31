@@ -1,10 +1,11 @@
 """Spec CRUD service for accepted generated candidates."""
-from sqlalchemy import select
+from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
 
 from app.models.layer import Layer
 from app.models.need import Need
 from app.models.spec import Spec
+from app.models.spec_inspection import SpecInspection
 from app.services.need_service import NeedNotFoundError, get_need
 
 DEFAULT_SPEC_LAYER = "System Requirement"
@@ -34,6 +35,22 @@ def list_full_spec_tree_for_need(db: Session, need_id: int) -> list[Spec]:
     get_need(db, need_id)
     statement = select(Spec).where(Spec.need_id == need_id).order_by(Spec.id)
     return list(db.scalars(statement).all())
+
+
+def latest_inspection_ids(db: Session, spec_ids: list[int]) -> dict[int, int]:
+    """Return the latest persisted inspection id for each Spec id."""
+    if len(spec_ids) == 0:
+        return {}
+    rows = db.execute(
+        select(SpecInspection.spec_id, SpecInspection.id)
+        .where(SpecInspection.spec_id.in_(spec_ids))
+        .order_by(SpecInspection.spec_id, desc(SpecInspection.created_at), desc(SpecInspection.id))
+    ).all()
+    latest_ids: dict[int, int] = {}
+    for spec_id, inspection_id in rows:
+        if spec_id not in latest_ids:
+            latest_ids[spec_id] = inspection_id
+    return latest_ids
 
 
 def list_children_of_spec(db: Session, spec_id: int) -> list[Spec]:
