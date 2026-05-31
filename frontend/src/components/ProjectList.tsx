@@ -6,6 +6,7 @@ import {
   renameProject,
 } from '../api/projects'
 import type { Project } from '../types/project'
+import { ProjectActions } from './ProjectActions'
 
 type ProjectListProps = {
   selectedProjectId: number | null
@@ -93,6 +94,8 @@ export function ProjectList({ selectedProjectId, onSelectProject }: ProjectListP
     setRenameDraft(project.name)
   }
 
+  const selectedProject = projects.find((project) => project.id === selectedProjectId) ?? null
+
   return (
     <aside className="h-screen w-full max-w-sm border-r border-neutral-200 bg-white p-4">
       <div className="flex items-center justify-between gap-3">
@@ -101,6 +104,7 @@ export function ProjectList({ selectedProjectId, onSelectProject }: ProjectListP
           <p className="text-sm text-neutral-500">Requirement Review Dashboard</p>
         </div>
       </div>
+      <ProjectActions projectId={selectedProject?.id ?? null} projectName={selectedProject?.name ?? null} />
 
       <form className="mt-4 flex gap-2" onSubmit={handleCreateProject}>
         <input
