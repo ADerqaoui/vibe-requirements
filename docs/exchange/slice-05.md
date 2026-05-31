@@ -115,3 +115,7 @@
 ## User — verification
 - [User — 2026-05-31] F2 `pnpm test`: <PASTE pass/fail summary, e.g. "6 passed">.
 - [User — 2026-05-31] F3 real Ollama smoke: POST /api/models/<ID>/complete returned text + tokens, cost_sek 0, status success. Response: <PASTE the JSON>.
+
+## User — verification
+- [User — 2026-05-31] F2 pnpm test: 7 passed (4 files), incl. ModelTester.test.tsx.
+- [User — 2026-05-31] F3 real Ollama smoke: POST /api/models/<ID>/complete returned text + tokens, cost_sek 0, status success. Response: <PASTE the JSON>.
