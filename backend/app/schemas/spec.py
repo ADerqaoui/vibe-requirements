@@ -25,5 +25,6 @@ class SpecOut(BaseModel):
     id: int
     need_id: int
     statement: str
+    complexity: int | None
     created_at: str
     updated_at: str

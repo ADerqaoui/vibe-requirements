@@ -4,6 +4,7 @@ import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.classification import router as classification_router
 from app.api.export import router as export_router
 from app.api.gateway import router as gateway_router
 from app.api.generations import router as generations_router
@@ -34,6 +35,7 @@ def create_app() -> FastAPI:
     app.include_router(needs_router, prefix="/api")
     app.include_router(generations_router, prefix="/api")
     app.include_router(specs_router, prefix="/api")
+    app.include_router(classification_router, prefix="/api")
     app.include_router(models_router, prefix="/api")
     app.include_router(gateway_router, prefix="/api")
     app.include_router(settings_router, prefix="/api")
