@@ -1,10 +1,19 @@
 import { FormEvent, useEffect, useState } from 'react'
+import {
+  createNeedBlacklistEntry,
+  createSpecBlacklistEntry,
+  fetchNeedBlacklist,
+  fetchSpecBlacklist,
+} from '../api/blacklist'
 import { generateChildSpecs, generateSpecs } from '../api/generation'
 import { fetchModels } from '../api/models'
 import { createChildSpec, createNeedSpec, fetchNeedSpecTree } from '../api/specs'
 import type { GenerationCandidate } from '../types/generation'
 import type { Model } from '../types/model'
 import type { SpecTreeNode } from '../types/spec'
+import { GenerationCandidates } from './GenerationCandidates'
+import { GenerationForm } from './GenerationForm'
+import { GenerationPanelHeader } from './GenerationPanelHeader'
 import { SpecList } from './SpecList'
 
 export type GenerationParent = {
@@ -44,6 +53,8 @@ export function GenerationPanel({ rootNeedId, needId, parent, onSelectSpec }: Ge
   const [modelId, setModelId] = useState<number | null>(null)
   const [count, setCount] = useState(5)
   const [candidates, setCandidates] = useState<GenerationCandidate[]>([])
+  const [blacklistCount, setBlacklistCount] = useState(0)
+  const [allCandidatesBlocked, setAllCandidatesBlocked] = useState(false)
   const [specs, setSpecs] = useState<SpecTreeNode[]>([])
   const [error, setError] = useState<string | null>(null)
   const [isGenerating, setIsGenerating] = useState(false)
@@ -64,6 +75,18 @@ export function GenerationPanel({ rootNeedId, needId, parent, onSelectSpec }: Ge
     setError(null)
   }
 
+  async function loadBlacklistCount(parentToLoad: GenerationParent | null) {
+    if (parentToLoad === null) {
+      setBlacklistCount(0)
+      return
+    }
+    const entries =
+      parentToLoad.kind === 'need'
+        ? await fetchNeedBlacklist(parentToLoad.id)
+        : await fetchSpecBlacklist(parentToLoad.id)
+    setBlacklistCount(entries.length)
+  }
+
   useEffect(() => {
     setSpecs([])
     if (effectiveRootNeedId === null) {
@@ -75,6 +98,10 @@ export function GenerationPanel({ rootNeedId, needId, parent, onSelectSpec }: Ge
 
   useEffect(() => {
     setCandidates([])
+    setAllCandidatesBlocked(false)
+    loadBlacklistCount(generationParent).catch(() => {
+      setBlacklistCount(0)
+    })
   }, [parentKey(generationParent)])
 
   async function handleGenerate(event: FormEvent<HTMLFormElement>) {
@@ -83,12 +110,14 @@ export function GenerationPanel({ rootNeedId, needId, parent, onSelectSpec }: Ge
       return
     }
     setIsGenerating(true)
+    setAllCandidatesBlocked(false)
     try {
       const result =
         generationParent.kind === 'need'
           ? await generateSpecs(generationParent.id, { model_id: modelId, count })
           : await generateChildSpecs(generationParent.id, { model_id: modelId, count })
       setCandidates(result.candidates)
+      setAllCandidatesBlocked(result.candidates.length === 0)
       setError(null)
     } catch (generateError: unknown) {
       setError(errorMessage(generateError))
@@ -119,10 +148,23 @@ export function GenerationPanel({ rootNeedId, needId, parent, onSelectSpec }: Ge
     }
   }
 
-  function handleReject(candidate: GenerationCandidate) {
+  async function handleReject(candidate: GenerationCandidate) {
+    if (generationParent === null) {
+      return
+    }
     setCandidates((currentCandidates) =>
       currentCandidates.filter((item) => item.index !== candidate.index),
     )
+    try {
+      if (generationParent.kind === 'need') {
+        await createNeedBlacklistEntry(generationParent.id, { statement: candidate.statement })
+      } else {
+        await createSpecBlacklistEntry(generationParent.id, { statement: candidate.statement })
+      }
+      await loadBlacklistCount(generationParent)
+    } catch (rejectError: unknown) {
+      console.warn('Blacklist reject failed', rejectError)
+    }
   }
 
   if (generationParent === null) {
@@ -131,62 +173,16 @@ export function GenerationPanel({ rootNeedId, needId, parent, onSelectSpec }: Ge
 
   return (
     <section className="mt-6 border-t border-neutral-200 pt-5">
-      <h3 className="text-sm font-semibold text-neutral-900">Generate specs</h3>
+      <GenerationPanelHeader blacklistCount={blacklistCount} />
       {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
-      <form className="mt-3 flex flex-wrap items-end gap-3" onSubmit={handleGenerate}>
-        <label className="grid gap-1 text-xs font-medium text-neutral-600">
-          Model
-          <select
-            aria-label="Generation model"
-            className="rounded-md border border-neutral-300 px-3 py-2 text-sm font-normal text-neutral-900"
-            disabled={models.length === 0}
-            onChange={(event) => setModelId(Number(event.target.value))}
-            value={modelId ?? ''}
-          >
-            {models.length === 0 && <option value="">No enabled models</option>}
-            {models.map((model) => (
-              <option key={model.id} value={model.id}>
-                {model.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="grid gap-1 text-xs font-medium text-neutral-600">
-          Count
-          <input
-            aria-label="Generation count"
-            className="w-24 rounded-md border border-neutral-300 px-3 py-2 text-sm font-normal text-neutral-900"
-            max={10}
-            min={1}
-            onChange={(event) => setCount(Number(event.target.value))}
-            type="number"
-            value={count}
-          />
-        </label>
-        <button
-          className="rounded-md bg-neutral-950 px-3 py-2 text-sm text-white disabled:bg-neutral-400"
-          disabled={isGenerating || modelId === null}
-          type="submit"
-        >
-          {isGenerating ? 'Generating...' : 'Generate'}
-        </button>
-      </form>
+      <GenerationForm count={count} isGenerating={isGenerating} modelId={modelId} models={models} onCountChange={setCount} onGenerate={handleGenerate} onModelIdChange={setModelId} />
 
-      <ul className="mt-4 space-y-2">
-        {candidates.map((candidate) => (
-          <li className="rounded-md border border-neutral-200 bg-white p-3" key={candidate.index}>
-            <p className="text-sm text-neutral-950">{candidate.statement}</p>
-            <div className="mt-2 flex gap-3">
-              <button className="text-xs font-medium text-neutral-900" onClick={() => handleAccept(candidate)} type="button">
-                Accept
-              </button>
-              <button className="text-xs text-red-600" onClick={() => handleReject(candidate)} type="button">
-                Reject
-              </button>
-            </div>
-          </li>
-        ))}
-      </ul>
+      <GenerationCandidates candidates={candidates} onAccept={handleAccept} onReject={handleReject} />
+      {allCandidatesBlocked && (
+        <p className="mt-4 text-sm text-neutral-600">
+          All candidates were blocked by the blacklist — try again or rephrase.
+        </p>
+      )}
 
       <h3 className="mt-5 text-sm font-semibold text-neutral-900">Specs</h3>
       <SpecList

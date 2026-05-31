@@ -1,5 +1,5 @@
 """Blacklist entry ORM model."""
-from sqlalchemy import CheckConstraint, ForeignKey, Integer, Text, text
+from sqlalchemy import CheckConstraint, ForeignKey, Integer, Text, text as sql_text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -19,4 +19,4 @@ class BlacklistEntry(Base):
     parent_spec_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("specs.id", ondelete="CASCADE"))
     text: Mapped[str] = mapped_column(Text, nullable=False)
     source: Mapped[str] = mapped_column(Text, nullable=False)
-    created_at: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("datetime('now')"))
+    created_at: Mapped[str] = mapped_column(Text, nullable=False, server_default=sql_text("datetime('now')"))

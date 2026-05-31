@@ -2,6 +2,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.api.blacklist import get_blacklist_service
 from app.api.gateway import GatewayFactory, get_gateway_factory
 from app.config import get_settings
 from app.db import get_db
@@ -10,6 +11,8 @@ from app.gateway.base import GatewayError
 from app.models.need import Need
 from app.models.spec import Spec
 from app.schemas.generation import GenerationRequest, GenerationResult
+from app.services.blacklist_service import BlacklistService
+from app.services.embedding_service import EmbeddingError
 from app.services.generation_service import (
     GenerationParentNotFoundError,
     GenerationRuntime,
@@ -27,9 +30,17 @@ async def generate_specs_route(
     payload: GenerationRequest,
     db: Session = Depends(get_db),
     gateway_factory: GatewayFactory = Depends(get_gateway_factory),
+    blacklist_service: BlacklistService = Depends(get_blacklist_service),
 ) -> GenerationResult:
     """Generate child spec candidates from a Need."""
-    return await _generate_specs_for_parent("need", need_id, payload, db, gateway_factory)
+    return await _generate_specs_for_parent(
+        "need",
+        need_id,
+        payload,
+        db,
+        gateway_factory,
+        blacklist_service,
+    )
 
 
 @router.post("/specs/{spec_id}/generate", response_model=GenerationResult)
@@ -38,9 +49,17 @@ async def generate_child_specs_route(
     payload: GenerationRequest,
     db: Session = Depends(get_db),
     gateway_factory: GatewayFactory = Depends(get_gateway_factory),
+    blacklist_service: BlacklistService = Depends(get_blacklist_service),
 ) -> GenerationResult:
     """Generate child spec candidates from a Spec."""
-    return await _generate_specs_for_parent("spec", spec_id, payload, db, gateway_factory)
+    return await _generate_specs_for_parent(
+        "spec",
+        spec_id,
+        payload,
+        db,
+        gateway_factory,
+        blacklist_service,
+    )
 
 
 async def _generate_specs_for_parent(
@@ -49,6 +68,7 @@ async def _generate_specs_for_parent(
     payload: GenerationRequest,
     db: Session,
     gateway_factory: GatewayFactory,
+    blacklist_service: BlacklistService,
 ) -> GenerationResult:
     """Generate child spec candidates for either parent route."""
     settings = get_settings()
@@ -73,6 +93,7 @@ async def _generate_specs_for_parent(
                 retry_count=settings.llm_retry_count,
                 timeout_seconds=_timeout_for_provider(model.provider, settings),
             ),
+            blacklist_service=blacklist_service,
         )
     except GenerationParentNotFoundError as error:
         detail = "Need not found" if parent_kind == "need" else "Spec not found"
@@ -83,6 +104,11 @@ async def _generate_specs_for_parent(
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=f"Gateway failure: {error}",
+        ) from error
+    except EmbeddingError as error:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Embedding failure: {error}",
         ) from error
 
 

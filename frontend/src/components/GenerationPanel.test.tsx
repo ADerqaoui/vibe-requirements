@@ -41,6 +41,7 @@ describe('GenerationPanel', () => {
   let specTreeByNeed: Record<number, SpecTreeNode[]>
   let candidatesByNeed: Record<number, GenerationCandidate[]>
   let candidatesBySpec: Record<number, GenerationCandidate[]>
+  let blacklistByParent: Record<string, { id: number; text: string }[]>
 
   beforeEach(() => {
     specTreeByNeed = { 1: [], 2: [] }
@@ -55,6 +56,7 @@ describe('GenerationPanel', () => {
       10: [{ index: 1, statement: 'The actuator shall clamp.' }],
       20: [{ index: 1, statement: 'The controller shall trace.' }],
     }
+    blacklistByParent = {}
 
     vi.stubGlobal(
       'fetch',
@@ -69,6 +71,36 @@ describe('GenerationPanel', () => {
         if (path.startsWith('/api/needs/') && path.endsWith('/spec-tree') && method === 'GET') {
           const needId = Number(path.replace('/api/needs/', '').replace('/spec-tree', ''))
           return jsonResponse(specTreeByNeed[needId] ?? [])
+        }
+
+        if (path.startsWith('/api/needs/') && path.endsWith('/blacklist')) {
+          const needId = Number(path.replace('/api/needs/', '').replace('/blacklist', ''))
+          const key = `need:${needId}`
+          if (method === 'GET') {
+            return jsonResponse(blacklistByParent[key] ?? [])
+          }
+          const payload = JSON.parse(String(init?.body)) as { statement: string }
+          const entry = { id: (blacklistByParent[key]?.length ?? 0) + 1, text: payload.statement }
+          blacklistByParent = {
+            ...blacklistByParent,
+            [key]: [entry, ...(blacklistByParent[key] ?? [])],
+          }
+          return jsonResponse(entry)
+        }
+
+        if (path.startsWith('/api/specs/') && path.endsWith('/blacklist')) {
+          const specId = Number(path.replace('/api/specs/', '').replace('/blacklist', ''))
+          const key = `spec:${specId}`
+          if (method === 'GET') {
+            return jsonResponse(blacklistByParent[key] ?? [])
+          }
+          const payload = JSON.parse(String(init?.body)) as { statement: string }
+          const entry = { id: (blacklistByParent[key]?.length ?? 0) + 1, text: payload.statement }
+          blacklistByParent = {
+            ...blacklistByParent,
+            [key]: [entry, ...(blacklistByParent[key] ?? [])],
+          }
+          return jsonResponse(entry)
         }
 
         if (path.startsWith('/api/needs/') && path.endsWith('/generate') && method === 'POST') {
@@ -151,6 +183,29 @@ describe('GenerationPanel', () => {
 
     fireEvent.click(screen.getAllByRole('button', { name: 'Reject' })[0])
     await waitFor(() => expect(screen.queryByText('The system shall alert.')).not.toBeInTheDocument())
+    await waitFor(() =>
+      expect(fetch).toHaveBeenCalledWith(
+        '/api/needs/1/blacklist',
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({ statement: 'The system shall alert.' }),
+        }),
+      ),
+    )
+    expect(await screen.findByText('Blacklist: 1')).toBeInTheDocument()
+  })
+
+  it('shows an empty state when all candidates are blocked by the blacklist', async () => {
+    candidatesByNeed = { ...candidatesByNeed, 1: [] }
+
+    render(<GenerationPanel needId={1} />)
+
+    expect(await screen.findByLabelText('Generation model')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Generate' }))
+
+    expect(
+      await screen.findByText('All candidates were blocked by the blacklist — try again or rephrase.'),
+    ).toBeInTheDocument()
   })
 
   it('clears stale candidates when the selected Need changes', async () => {

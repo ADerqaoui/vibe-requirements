@@ -3,11 +3,13 @@ import pytest
 from sqlalchemy.orm import Session
 
 from app.gateway.base import GatewayError, GatewayResult
+from app.models.layer import Layer
 from app.models.model import Model
 from app.models.need import Need
 from app.models.project import Project
 from app.models.spec import Spec
-from app.models.layer import Layer
+from app.services.blacklist_service import BlacklistService
+from app.services.embedding_service import EMBEDDING_DIMENSIONS
 from app.services.generation_service import GenerationRuntime, ParentKind, generate_for_parent
 
 
@@ -30,6 +32,22 @@ class FakeGateway:
         if isinstance(self.outcome, GatewayError):
             raise self.outcome
         return self.outcome
+
+
+class FakeEmbeddingService:
+    """Embedding fake keyed by text."""
+
+    def __init__(self, embeddings: dict[str, list[float]]):
+        self.embeddings = embeddings
+
+    async def embed(self, text_value: str) -> list[float]:
+        """Return the configured embedding."""
+        return self.embeddings[text_value]
+
+
+def unit_vector(first: float, second: float = 0.0) -> list[float]:
+    """Return a 768-dim vector using the first two axes."""
+    return [first, second, *([0.0] * (EMBEDDING_DIMENSIONS - 2))]
 
 
 def seed_generation_parent(db_session: Session, parent_kind: ParentKind) -> tuple[int, Model]:
@@ -118,3 +136,33 @@ async def test_generation_service_gateway_failure_propagates(
             count=2,
             runtime=GenerationRuntime(retry_count=0),
         )
+
+
+@pytest.mark.asyncio
+async def test_generation_service_filters_parsed_candidates_against_blacklist(
+    db_session: Session,
+) -> None:
+    """Generation filters parsed candidates against the parent blacklist."""
+    parent_id, model = seed_generation_parent(db_session, "need")
+    fake_embedding_service = FakeEmbeddingService(
+        {
+            "Rejected brake": unit_vector(1),
+            "Brake": unit_vector(1),
+            "Alert": unit_vector(0, 1),
+        }
+    )
+    blacklist_service = BlacklistService(db_session, fake_embedding_service)
+    await blacklist_service.add_blacklist_entry("need", parent_id, "Rejected brake")
+
+    result = await generate_for_parent(
+        db=db_session,
+        parent_kind="need",
+        parent_id=parent_id,
+        model=model,
+        gateway=FakeGateway(GatewayResult("1. Brake\n2. Alert", 10, 8)),
+        count=2,
+        runtime=GenerationRuntime(retry_count=0),
+        blacklist_service=blacklist_service,
+    )
+
+    assert [candidate.statement for candidate in result.candidates] == ["Alert"]
