@@ -3,15 +3,11 @@ import { createNeed, deleteNeed, fetchProjectNeeds, updateNeed } from '../api/ne
 import type { Need, NeedPayload } from '../types/need'
 import type { SpecTreeNode } from '../types/spec'
 import { GenerationPanel, type GenerationParent } from './GenerationPanel'
+import { NeedCreateForm, type NeedDraft } from './NeedCreateForm'
+import { NeedRow } from './NeedRow'
 
 type NeedListProps = {
   projectId: number | null
-}
-
-type NeedDraft = {
-  statement: string
-  context: string
-  constraints: string
 }
 
 const EMPTY_DRAFT: NeedDraft = {
@@ -161,32 +157,7 @@ export function NeedList({ projectId }: NeedListProps) {
     <section className="max-w-3xl">
       <h2 className="text-lg font-semibold text-neutral-950">Needs</h2>
 
-      <form className="mt-4 grid gap-2" onSubmit={handleCreateNeed}>
-        <input
-          aria-label="Need statement"
-          className="rounded-md border border-neutral-300 px-3 py-2 text-sm"
-          onChange={(event) => setDraft({ ...draft, statement: event.target.value })}
-          placeholder="Statement"
-          value={draft.statement}
-        />
-        <input
-          aria-label="Need context"
-          className="rounded-md border border-neutral-300 px-3 py-2 text-sm"
-          onChange={(event) => setDraft({ ...draft, context: event.target.value })}
-          placeholder="Context"
-          value={draft.context}
-        />
-        <input
-          aria-label="Need constraints"
-          className="rounded-md border border-neutral-300 px-3 py-2 text-sm"
-          onChange={(event) => setDraft({ ...draft, constraints: event.target.value })}
-          placeholder="Constraints"
-          value={draft.constraints}
-        />
-        <button className="w-fit rounded-md bg-neutral-950 px-3 py-2 text-sm text-white" type="submit">
-          Add need
-        </button>
-      </form>
+      <NeedCreateForm draft={draft} onDraftChange={setDraft} onSubmit={handleCreateNeed} />
 
       {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
       {isLoading && <p className="mt-6 text-sm text-neutral-500">Loading needs...</p>}
@@ -195,75 +166,20 @@ export function NeedList({ projectId }: NeedListProps) {
       )}
 
       <ul className="mt-4 space-y-2">
-        {needs.map((need) => {
-          const isSelected = selectedParent?.kind === 'need' && selectedParent.id === need.id
-          const isEditing = editingNeedId === need.id
-          return (
-            <li
-              className={`rounded-md border bg-white p-3 ${
-                isSelected ? 'border-blue-500 border-l-4 bg-blue-50 font-medium' : 'border-neutral-200'
-              }`}
-              key={need.id}
-            >
-              {isEditing ? (
-                <div className="grid gap-2">
-                  <input
-                    aria-label={`Edit statement ${need.id}`}
-                    className="rounded-md border border-neutral-300 px-2 py-1 text-sm"
-                    onChange={(event) => setEditDraft({ ...editDraft, statement: event.target.value })}
-                    value={editDraft.statement}
-                  />
-                  <input
-                    aria-label={`Edit context ${need.id}`}
-                    className="rounded-md border border-neutral-300 px-2 py-1 text-sm"
-                    onChange={(event) => setEditDraft({ ...editDraft, context: event.target.value })}
-                    value={editDraft.context}
-                  />
-                  <input
-                    aria-label={`Edit constraints ${need.id}`}
-                    className="rounded-md border border-neutral-300 px-2 py-1 text-sm"
-                    onChange={(event) =>
-                      setEditDraft({ ...editDraft, constraints: event.target.value })
-                    }
-                    value={editDraft.constraints}
-                  />
-                  <button
-                    className="w-fit text-sm font-medium text-neutral-900"
-                    onClick={() => handleUpdateNeed(need.id)}
-                    type="button"
-                  >
-                    Save
-                  </button>
-                </div>
-              ) : (
-                <div className="flex items-start justify-between gap-3">
-                  <button
-                    className="min-w-0 flex-1 text-left"
-                    onClick={() => selectNeed(need.id)}
-                    type="button"
-                  >
-                    <span className="block text-sm font-medium text-neutral-950">{need.statement}</span>
-                    {need.context && <span className="block text-xs text-neutral-500">{need.context}</span>}
-                    {need.constraints && (
-                      <span className="block text-xs text-neutral-500">{need.constraints}</span>
-                    )}
-                    {need.complexity === null && (
-                      <span className="mt-2 inline-block rounded bg-amber-100 px-2 py-1 text-xs text-amber-800">
-                        Unclassified
-                      </span>
-                    )}
-                  </button>
-                  <button className="text-xs text-neutral-500" onClick={() => beginEdit(need)} type="button">
-                    Edit
-                  </button>
-                  <button className="text-xs text-red-600" onClick={() => handleDeleteNeed(need)} type="button">
-                    Delete
-                  </button>
-                </div>
-              )}
-            </li>
-          )
-        })}
+        {needs.map((need) => (
+          <NeedRow
+            editDraft={editDraft}
+            isEditing={editingNeedId === need.id}
+            isSelected={selectedParent?.kind === 'need' && selectedParent.id === need.id}
+            key={need.id}
+            need={need}
+            onBeginEdit={beginEdit}
+            onDelete={handleDeleteNeed}
+            onEditDraftChange={setEditDraft}
+            onSave={handleUpdateNeed}
+            onSelect={selectNeed}
+          />
+        ))}
       </ul>
       <GenerationPanel
         onSelectSpec={selectSpec}

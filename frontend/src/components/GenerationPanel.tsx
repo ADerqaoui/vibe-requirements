@@ -58,16 +58,18 @@ export function GenerationPanel({ rootNeedId, needId, parent, onSelectSpec }: Ge
       .catch((loadError: unknown) => setError(errorMessage(loadError)))
   }, [])
 
+  async function loadSpecTree(needId: number) {
+    const loadedSpecs = await fetchNeedSpecTree(needId)
+    setSpecs(loadedSpecs)
+    setError(null)
+  }
+
   useEffect(() => {
     setSpecs([])
     if (effectiveRootNeedId === null) {
       return
     }
-    fetchNeedSpecTree(effectiveRootNeedId)
-      .then((loadedSpecs) => {
-        setSpecs(loadedSpecs)
-        setError(null)
-      })
+    loadSpecTree(effectiveRootNeedId)
       .catch((loadError: unknown) => setError(errorMessage(loadError)))
   }, [effectiveRootNeedId])
 
@@ -108,9 +110,9 @@ export function GenerationPanel({ rootNeedId, needId, parent, onSelectSpec }: Ge
       setCandidates((currentCandidates) =>
         currentCandidates.filter((item) => item.index !== candidate.index),
       )
-      const loadedSpecs =
-        effectiveRootNeedId === null ? [] : await fetchNeedSpecTree(effectiveRootNeedId)
-      setSpecs(loadedSpecs)
+      if (effectiveRootNeedId !== null) {
+        await loadSpecTree(effectiveRootNeedId)
+      }
       setError(null)
     } catch (acceptError: unknown) {
       setError(errorMessage(acceptError))
@@ -187,7 +189,16 @@ export function GenerationPanel({ rootNeedId, needId, parent, onSelectSpec }: Ge
       </ul>
 
       <h3 className="mt-5 text-sm font-semibold text-neutral-900">Specs</h3>
-      <SpecList onSelectSpec={onSelectSpec} selectedSpecId={parent?.kind === 'spec' ? parent.id : null} specs={specs} />
+      <SpecList
+        onSelectSpec={onSelectSpec}
+        onSpecChanged={() => {
+          if (effectiveRootNeedId !== null) {
+            void loadSpecTree(effectiveRootNeedId)
+          }
+        }}
+        selectedSpecId={parent?.kind === 'spec' ? parent.id : null}
+        specs={specs}
+      />
     </section>
   )
 }

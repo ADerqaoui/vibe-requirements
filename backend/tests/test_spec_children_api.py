@@ -139,6 +139,7 @@ async def test_spec_tree_api_returns_recursive_tree(
             "complexity": None,
             "status": "pending",
             "parent_spec_id": None,
+            "latest_inspection_id": None,
             "children": [
                 {
                     "id": child_id,
@@ -146,6 +147,7 @@ async def test_spec_tree_api_returns_recursive_tree(
                     "complexity": None,
                     "status": "pending",
                     "parent_spec_id": parent_id,
+                    "latest_inspection_id": None,
                     "children": [
                         {
                             "id": grandchild_id,
@@ -153,6 +155,7 @@ async def test_spec_tree_api_returns_recursive_tree(
                             "complexity": None,
                             "status": "pending",
                             "parent_spec_id": child_id,
+                            "latest_inspection_id": None,
                             "children": [],
                         },
                     ],
@@ -165,6 +168,7 @@ async def test_spec_tree_api_returns_recursive_tree(
             "complexity": None,
             "status": "pending",
             "parent_spec_id": None,
+            "latest_inspection_id": None,
             "children": [],
         },
     ]

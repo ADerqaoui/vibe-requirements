@@ -5,6 +5,7 @@ export type Spec = {
   statement: string
   complexity: number | null
   status: string
+  latest_inspection_id: number | null
   created_at: string
   updated_at: string
 }
@@ -19,5 +20,6 @@ export type SpecTreeNode = {
   complexity: number | null
   status: string
   parent_spec_id: number | null
+  latest_inspection_id: number | null
   children: SpecTreeNode[]
 }

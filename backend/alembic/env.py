@@ -40,6 +40,7 @@ def run_migrations_online() -> None:
         context.configure(connection=connection, target_metadata=target_metadata)
         with context.begin_transaction():
             context.run_migrations()
+        connection.commit()
 
 
 def _load_sqlite_vec(connection) -> None:
