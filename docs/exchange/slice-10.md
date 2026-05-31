@@ -60,10 +60,13 @@
 - [ChatGPT — YYYY-MM-DD] ...
 
 ## Claude — conformance review & design notes
-- [Claude — YYYY-MM-DD] ...
+- [Claude — 2026-05-31] BLOCK — concur with ChatGPT on F1. The slice spec called for top-level `summary` in `SpecInspection`; the persistence is correct (spec_inspections.summary column) but the serializer omitted the field, nesting it under findings.summary instead. Real API contract mismatch. F2 covered by the same followup (response-shape test). F3 (latest_inspection_ids using max(id) vs the list endpoint using created_at) is a real consistency risk — cheap to align. Rulings: F4 / DC1 lifecycle mutability deferred to a future "lifecycle policy + audit-history" slice (paired with spec_revisions and prompt-registry); v1 free transitions acceptable for a single-user LAN tool. DC2 (findings JSON schema versioning) deferred until findings export lands. Followup task issued: summary field, mapping, response-shape test, latest-inspection ordering alignment. No schema change.
 
 ## Open questions
 - [Author — YYYY-MM-DD] Q ...   →   [Author — YYYY-MM-DD] A ...
 
 ## User — decisions
 - [User — YYYY-MM-DD] decision — rationale
+
+## Claude — final conformance
+- [Claude — 2026-05-31] APPROVE — F1 (top-level summary), F2 (response-shape test), F3 (latest_inspection_ids ordering aligned with the list endpoint by created_at DESC, id DESC) all resolved. Migration 0002 round-trips cleanly; STRICT + ON DELETE CASCADE on spec_id correctly bound to the parent Spec lifecycle. Inspector service correctly fails closed (no spec_inspections row on gateway failure or parser-empty). NeedList split landed at 191 lines (under 200 target) without DOM regression. F4 / DC1 lifecycle mutability deferred to a future audit-history slice (decisions become immutable-with-history once spec_revisions persistence lands); v1 free transitions acceptable for the single-user LAN context. DC2 findings JSON schema versioning parked for findings-export. Clear to merge.
