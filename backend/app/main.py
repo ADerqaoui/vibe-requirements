@@ -5,11 +5,13 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.gateway import router as gateway_router
+from app.api.generations import router as generations_router
 from app.api.health import router as health_router
 from app.api.models import router as models_router
 from app.api.needs import router as needs_router
 from app.api.projects import router as projects_router
 from app.api.settings import router as settings_router
+from app.api.specs import router as specs_router
 from app.config import get_settings
 
 
@@ -28,6 +30,8 @@ def create_app() -> FastAPI:
     app.include_router(health_router, prefix="/api")
     app.include_router(projects_router, prefix="/api")
     app.include_router(needs_router, prefix="/api")
+    app.include_router(generations_router, prefix="/api")
+    app.include_router(specs_router, prefix="/api")
     app.include_router(models_router, prefix="/api")
     app.include_router(gateway_router, prefix="/api")
     app.include_router(settings_router, prefix="/api")

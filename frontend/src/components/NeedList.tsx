@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useState } from 'react'
 import { createNeed, deleteNeed, fetchProjectNeeds, updateNeed } from '../api/needs'
 import type { Need, NeedPayload } from '../types/need'
+import { GenerationPanel } from './GenerationPanel'
 
 type NeedListProps = {
   projectId: number | null
@@ -248,6 +249,7 @@ export function NeedList({ projectId }: NeedListProps) {
           )
         })}
       </ul>
+      <GenerationPanel needId={selectedNeedId} />
     </section>
   )
 }
