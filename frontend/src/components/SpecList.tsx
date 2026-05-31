@@ -11,6 +11,7 @@ import { SpecNode } from './SpecNode'
 
 type SpecListProps = {
   specs: SpecTreeNode[]
+  autoClassifyingSpecIds?: Set<number>
   onSelectSpec?: (spec: SpecTreeNode) => void
   onSpecChanged?: () => void
   selectedSpecId?: number | null
@@ -20,7 +21,13 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
 
-export function SpecList({ specs, onSelectSpec, onSpecChanged, selectedSpecId }: SpecListProps) {
+export function SpecList({
+  specs,
+  autoClassifyingSpecIds = new Set(),
+  onSelectSpec,
+  onSpecChanged,
+  selectedSpecId,
+}: SpecListProps) {
   const [complexityBySpec, setComplexityBySpec] = useState<Record<number, number>>({})
   const [inspectionBySpec, setInspectionBySpec] = useState<Record<number, SpecInspection>>({})
   const [loadingInspectionId, setLoadingInspectionId] = useState<number | null>(null)
@@ -110,6 +117,7 @@ export function SpecList({ specs, onSelectSpec, onSpecChanged, selectedSpecId }:
       <ul className="mt-2 space-y-2">
         {specs.map((spec) => (
           <SpecNode
+            autoClassifyingSpecIds={autoClassifyingSpecIds}
             complexityBySpec={complexityBySpec}
             inspectionBySpec={inspectionBySpec}
             key={spec.id}
