@@ -3,6 +3,7 @@ import { createModel, deleteModel, fetchModels, updateModel } from '../api/model
 import { fetchSettings, updateSettings } from '../api/settings'
 import type { Model, ModelPayload } from '../types/model'
 import type { Setting, SettingsResponse } from '../types/setting'
+import { ModelTester } from './ModelTester'
 
 const SETTING_KEYS = ['fx_rate_usd_sek', 'complexity_tier_map', 'router_default', 'cost_ceiling_sek']
 
@@ -219,6 +220,7 @@ export function SettingsPanel() {
           </ul>
         </div>
       </div>
+      <ModelTester models={models} />
     </section>
   )
 }
