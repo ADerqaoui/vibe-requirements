@@ -37,8 +37,36 @@
   | `POST /api/specs/{id}/generate` and `POST /api/specs/{id}/specs` cover the same status codes as Need-side endpoints. | `test_spec_generation_api_missing_spec_model_disabled_and_count`, `test_spec_generation_api_parser_empty_and_gateway_failure`, `test_spec_children_api_missing_parent_and_blank_statement` | Yes |
   | Need -> Spec generation and slice-06 tests remain compatible. | Existing `test_generations_api.py`, `test_specs_api.py`, `GenerationPanel.test.tsx`; `generate_specs_for_need(...)` wrapper remains. | Yes |
   | Classification and Markdown export continue to work for deeper Specs without schema changes. | Existing `test_classification_api.py`, `test_classification_service.py`, `test_export_markdown.py`, `test_export_api.py` in full pytest run. | Yes |
-  | Stale candidates clear whenever selected parent changes Need <-> Spec at any depth. | `GenerationPanel.test.tsx` covers Need -> Spec, Spec -> Spec, and Spec -> Need switching. | Yes |
-  | `pytest` + `pnpm test` pass and handoff includes mapping. | Backend pytest: 84 passed. Frontend pnpm test: 15 passed. This handoff includes the mapping. | Yes |
+| Stale candidates clear whenever selected parent changes Need <-> Spec at any depth. | `GenerationPanel.test.tsx` covers Need -> Spec, Spec -> Spec, and Spec -> Need switching. | Yes |
+| `pytest` + `pnpm test` pass and handoff includes mapping. | Backend pytest: 84 passed. Frontend pnpm test: 15 passed. This handoff includes the mapping. | Yes |
+
+- [Codex — 2026-05-31] Implemented scoped UX fix so the full Spec tree remains visible while selecting any generation parent.
+
+  Built:
+  - Added `GET /api/needs/{need_id}/spec-tree` returning the full nested Spec hierarchy ordered by id, with recursive `children`.
+  - Added `parent_spec_id` to `SpecOut` and updated root/child API tests to assert root `null` and child parent ids.
+  - Refactored `GenerationPanel` to take `rootNeedId`, fetch `/api/needs/{id}/spec-tree` for display, and keep `selectedParent` independent for Generate/Accept endpoint targeting.
+  - Updated recursive `SpecList` usage so selecting root or child Specs changes only selection highlight/target, not the visible tree.
+  - On Accept, refetches the root Need spec-tree so accepted children appear nested in place.
+  - No schema or migration changes.
+
+  Verification:
+  - `.venv/bin/pytest` from `backend/`: 86 passed, 61 warnings.
+  - `PATH="$HOME/.nvm/versions/node/v24.16.0/bin:$PATH" pnpm test` from `frontend/`: 7 files passed, 16 tests passed.
+  - `PATH="$HOME/.nvm/versions/node/v24.16.0/bin:$PATH" pnpm exec tsc --noEmit` from `frontend/`: passed.
+
+  Acceptance-to-test mapping:
+
+  | Acceptance criterion | Test | Covered? |
+  | --- | --- | --- |
+  | `GET /api/needs/{need_id}/spec-tree` returns the Need's full recursive Spec hierarchy ordered by id. | `test_spec_tree_api_returns_recursive_tree` | Yes |
+  | Missing Need on spec-tree returns 404. | `test_spec_tree_api_missing_need_returns_404` | Yes |
+  | `SpecOut.parent_spec_id` is `null` for root Specs and parent id for children. | `test_specs_api_creates_and_lists_only_need_specs`, `test_spec_children_api_creates_pending_child`, `test_spec_children_api_lists_direct_children_only` | Yes |
+  | GenerationPanel fetches full tree once per root Need and keeps tree data independent from selected parent. | `GenerationPanel.test.tsx` integrated tree selection test | Yes |
+  | Selecting root and child Specs highlights the selected node without changing tree structure. | `GenerationPanel.test.tsx` integrated tree selection test | Yes |
+  | Accept on a child candidate refetches spec-tree and renders the new grandchild nested under the child. | `GenerationPanel.test.tsx` integrated tree selection test | Yes |
+  | Stale candidates clear on every parent change. | Existing `GenerationPanel.test.tsx` parent-switch regression test | Yes |
+  | Backend pytest and frontend pnpm test pass. | Commands listed above | Yes |
 
 ## ChatGPT — QA review
 - [ChatGPT — YYYY-MM-DD] ...

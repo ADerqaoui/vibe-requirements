@@ -1,10 +1,10 @@
 import { FormEvent, useEffect, useState } from 'react'
 import { generateChildSpecs, generateSpecs } from '../api/generation'
 import { fetchModels } from '../api/models'
-import { createChildSpec, createNeedSpec, fetchChildSpecs, fetchNeedSpecs } from '../api/specs'
+import { createChildSpec, createNeedSpec, fetchNeedSpecTree } from '../api/specs'
 import type { GenerationCandidate } from '../types/generation'
 import type { Model } from '../types/model'
-import type { Spec } from '../types/spec'
+import type { SpecTreeNode } from '../types/spec'
 import { SpecList } from './SpecList'
 
 export type GenerationParent = {
@@ -13,9 +13,10 @@ export type GenerationParent = {
 }
 
 type GenerationPanelProps = {
+  rootNeedId?: number | null
   needId?: number | null
   parent?: GenerationParent | null
-  onSelectSpec?: (spec: Spec) => void
+  onSelectSpec?: (spec: SpecTreeNode) => void
 }
 
 function errorMessage(error: unknown): string {
@@ -36,13 +37,14 @@ function parentKey(parent: GenerationParent | null): string {
   return parent === null ? 'none' : `${parent.kind}:${parent.id}`
 }
 
-export function GenerationPanel({ needId, parent, onSelectSpec }: GenerationPanelProps) {
-  const generationParent = parent ?? parentFromNeedId(needId)
+export function GenerationPanel({ rootNeedId, needId, parent, onSelectSpec }: GenerationPanelProps) {
+  const effectiveRootNeedId = rootNeedId ?? needId ?? null
+  const generationParent = parent ?? parentFromNeedId(effectiveRootNeedId)
   const [models, setModels] = useState<Model[]>([])
   const [modelId, setModelId] = useState<number | null>(null)
   const [count, setCount] = useState(5)
   const [candidates, setCandidates] = useState<GenerationCandidate[]>([])
-  const [specs, setSpecs] = useState<Spec[]>([])
+  const [specs, setSpecs] = useState<SpecTreeNode[]>([])
   const [error, setError] = useState<string | null>(null)
   const [isGenerating, setIsGenerating] = useState(false)
 
@@ -57,21 +59,20 @@ export function GenerationPanel({ needId, parent, onSelectSpec }: GenerationPane
   }, [])
 
   useEffect(() => {
-    setCandidates([])
     setSpecs([])
-    if (generationParent === null) {
+    if (effectiveRootNeedId === null) {
       return
     }
-    const loadSpecs =
-      generationParent.kind === 'need'
-        ? fetchNeedSpecs(generationParent.id)
-        : fetchChildSpecs(generationParent.id)
-    loadSpecs
+    fetchNeedSpecTree(effectiveRootNeedId)
       .then((loadedSpecs) => {
         setSpecs(loadedSpecs)
         setError(null)
       })
       .catch((loadError: unknown) => setError(errorMessage(loadError)))
+  }, [effectiveRootNeedId])
+
+  useEffect(() => {
+    setCandidates([])
   }, [parentKey(generationParent)])
 
   async function handleGenerate(event: FormEvent<HTMLFormElement>) {
@@ -108,9 +109,7 @@ export function GenerationPanel({ needId, parent, onSelectSpec }: GenerationPane
         currentCandidates.filter((item) => item.index !== candidate.index),
       )
       const loadedSpecs =
-        generationParent.kind === 'need'
-          ? await fetchNeedSpecs(generationParent.id)
-          : await fetchChildSpecs(generationParent.id)
+        effectiveRootNeedId === null ? [] : await fetchNeedSpecTree(effectiveRootNeedId)
       setSpecs(loadedSpecs)
       setError(null)
     } catch (acceptError: unknown) {

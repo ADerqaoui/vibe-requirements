@@ -1,4 +1,4 @@
-import type { Spec, SpecPayload } from '../types/spec'
+import type { Spec, SpecPayload, SpecTreeNode } from '../types/spec'
 
 export async function fetchNeedSpecs(needId: number): Promise<Spec[]> {
   const response = await fetch(`/api/needs/${needId}/specs`)
@@ -6,6 +6,14 @@ export async function fetchNeedSpecs(needId: number): Promise<Spec[]> {
     throw new Error(`Specs request failed: HTTP ${response.status}`)
   }
   return (await response.json()) as Spec[]
+}
+
+export async function fetchNeedSpecTree(needId: number): Promise<SpecTreeNode[]> {
+  const response = await fetch(`/api/needs/${needId}/spec-tree`)
+  if (!response.ok) {
+    throw new Error(`Spec tree request failed: HTTP ${response.status}`)
+  }
+  return (await response.json()) as SpecTreeNode[]
 }
 
 export async function createNeedSpec(needId: number, payload: SpecPayload): Promise<Spec> {

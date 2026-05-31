@@ -29,6 +29,13 @@ def list_specs_for_need(db: Session, need_id: int) -> list[Spec]:
     return list(db.scalars(statement).all())
 
 
+def list_full_spec_tree_for_need(db: Session, need_id: int) -> list[Spec]:
+    """Return every Spec under a Need ordered for deterministic tree building."""
+    get_need(db, need_id)
+    statement = select(Spec).where(Spec.need_id == need_id).order_by(Spec.id)
+    return list(db.scalars(statement).all())
+
+
 def list_children_of_spec(db: Session, spec_id: int) -> list[Spec]:
     """Return direct child Specs under a Spec."""
     get_spec(db, spec_id)

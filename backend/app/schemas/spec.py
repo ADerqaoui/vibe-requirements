@@ -24,7 +24,20 @@ class SpecOut(BaseModel):
 
     id: int
     need_id: int
+    parent_spec_id: int | None
     statement: str
     complexity: int | None
+    status: str
     created_at: str
     updated_at: str
+
+
+class SpecTreeNode(BaseModel):
+    """Nested Spec tree node response body."""
+
+    id: int
+    statement: str
+    complexity: int | None
+    status: str
+    parent_spec_id: int | None
+    children: list["SpecTreeNode"]

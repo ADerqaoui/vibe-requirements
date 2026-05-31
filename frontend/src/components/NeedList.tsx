@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useState } from 'react'
 import { createNeed, deleteNeed, fetchProjectNeeds, updateNeed } from '../api/needs'
 import type { Need, NeedPayload } from '../types/need'
-import type { Spec } from '../types/spec'
+import type { SpecTreeNode } from '../types/spec'
 import { GenerationPanel, type GenerationParent } from './GenerationPanel'
 
 type NeedListProps = {
@@ -149,7 +149,7 @@ export function NeedList({ projectId }: NeedListProps) {
     setSelectedParent({ kind: 'need', id: needId })
   }
 
-  function selectSpec(spec: Spec) {
+  function selectSpec(spec: SpecTreeNode) {
     setSelectedParent({ kind: 'spec', id: spec.id })
   }
 
@@ -196,12 +196,12 @@ export function NeedList({ projectId }: NeedListProps) {
 
       <ul className="mt-4 space-y-2">
         {needs.map((need) => {
-          const isSelected = selectedNeedId === need.id
+          const isSelected = selectedParent?.kind === 'need' && selectedParent.id === need.id
           const isEditing = editingNeedId === need.id
           return (
             <li
               className={`rounded-md border bg-white p-3 ${
-                isSelected ? 'border-neutral-950' : 'border-neutral-200'
+                isSelected ? 'border-blue-500 border-l-4 bg-blue-50 font-medium' : 'border-neutral-200'
               }`}
               key={need.id}
             >
@@ -265,7 +265,11 @@ export function NeedList({ projectId }: NeedListProps) {
           )
         })}
       </ul>
-      <GenerationPanel onSelectSpec={selectSpec} parent={selectedParent} />
+      <GenerationPanel
+        onSelectSpec={selectSpec}
+        parent={selectedParent}
+        rootNeedId={selectedNeedId}
+      />
     </section>
   )
 }

@@ -1,23 +1,22 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { classifySpec } from '../api/classification'
-import { fetchChildSpecs } from '../api/specs'
 import type { ClassificationVote } from '../types/classification'
-import type { Spec } from '../types/spec'
+import type { SpecTreeNode } from '../types/spec'
 
 type SpecListProps = {
-  specs: Spec[]
-  onSelectSpec?: (spec: Spec) => void
+  specs: SpecTreeNode[]
+  onSelectSpec?: (spec: SpecTreeNode) => void
   selectedSpecId?: number | null
 }
 
 type SpecNodeProps = {
-  spec: Spec
+  spec: SpecTreeNode
   complexityBySpec: Record<number, number>
   votesBySpec: Record<number, ClassificationVote[]>
   loadingSpecId: number | null
   selectedSpecId?: number | null
-  onClassify: (spec: Spec) => void
-  onSelectSpec?: (spec: Spec) => void
+  onClassify: (spec: SpecTreeNode) => void
+  onSelectSpec?: (spec: SpecTreeNode) => void
 }
 
 function voteTooltip(votes: ClassificationVote[] | undefined): string {
@@ -33,7 +32,7 @@ export function SpecList({ specs, onSelectSpec, selectedSpecId }: SpecListProps)
   const [loadingSpecId, setLoadingSpecId] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  async function handleClassify(spec: Spec) {
+  async function handleClassify(spec: SpecTreeNode) {
     setLoadingSpecId(spec.id)
     try {
       const result = await classifySpec(spec.id)
@@ -84,35 +83,13 @@ function SpecNode({
   onClassify,
   onSelectSpec,
 }: SpecNodeProps) {
-  const [children, setChildren] = useState<Spec[]>([])
-  const [error, setError] = useState<string | null>(null)
   const complexity = complexityBySpec[spec.id] ?? spec.complexity
   const isSelected = selectedSpecId === spec.id
-
-  useEffect(() => {
-    let didCancel = false
-    fetchChildSpecs(spec.id)
-      .then((loadedChildren) => {
-        if (didCancel) {
-          return
-        }
-        setChildren(loadedChildren)
-        setError(null)
-      })
-      .catch((loadError: unknown) => {
-        if (!didCancel) {
-          setError(loadError instanceof Error ? loadError.message : String(loadError))
-        }
-      })
-    return () => {
-      didCancel = true
-    }
-  }, [spec.id])
 
   return (
     <li
       className={`rounded-md border bg-white p-3 text-sm ${
-        isSelected ? 'border-neutral-950' : 'border-neutral-200'
+        isSelected ? 'border-blue-500 border-l-4 bg-blue-50 font-medium' : 'border-neutral-200'
       }`}
     >
       <div className="flex items-start justify-between gap-3">
@@ -138,10 +115,9 @@ function SpecNode({
           {loadingSpecId === spec.id ? 'Classifying...' : 'Classify'}
         </button>
       </div>
-      {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
-      {children.length > 0 && (
+      {spec.children.length > 0 && (
         <ul className="mt-2 space-y-2 border-l border-neutral-200 pl-4">
-          {children.map((child) => (
+          {spec.children.map((child) => (
             <SpecNode
               complexityBySpec={complexityBySpec}
               key={child.id}
