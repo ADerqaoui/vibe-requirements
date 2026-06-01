@@ -42,9 +42,11 @@ describe('GenerationPanel', () => {
   let candidatesByNeed: Record<number, GenerationCandidate[]>
   let candidatesBySpec: Record<number, GenerationCandidate[]>
   let blacklistByParent: Record<string, { id: number; text: string }[]>
+  let blacklistPostShouldFail: boolean
   let classifyHandler: (specId: number) => Promise<Response> | Response
   let classifyRequests: number[]
   let requestLog: string[]
+  let specTreeFailuresByNeed: Record<number, number>
 
   beforeEach(() => {
     specTreeByNeed = { 1: [], 2: [] }
@@ -60,10 +62,12 @@ describe('GenerationPanel', () => {
       20: [{ index: 1, statement: 'The controller shall trace.' }],
     }
     blacklistByParent = {}
+    blacklistPostShouldFail = false
     classifyRequests = []
     requestLog = []
     classifyHandler = (specId: number) =>
       jsonResponse({ spec_id: specId, votes: [{ model_id: 3, vote: 3 }], complexity: 3 })
+    specTreeFailuresByNeed = {}
 
     vi.stubGlobal(
       'fetch',
@@ -78,6 +82,13 @@ describe('GenerationPanel', () => {
 
         if (path.startsWith('/api/needs/') && path.endsWith('/spec-tree') && method === 'GET') {
           const needId = Number(path.replace('/api/needs/', '').replace('/spec-tree', ''))
+          if ((specTreeFailuresByNeed[needId] ?? 0) > 0) {
+            specTreeFailuresByNeed = {
+              ...specTreeFailuresByNeed,
+              [needId]: specTreeFailuresByNeed[needId] - 1,
+            }
+            return { ok: false, status: 500, json: async () => ({}) } as Response
+          }
           return jsonResponse(specTreeByNeed[needId] ?? [])
         }
 
@@ -86,6 +97,9 @@ describe('GenerationPanel', () => {
           const key = `need:${needId}`
           if (method === 'GET') {
             return jsonResponse(blacklistByParent[key] ?? [])
+          }
+          if (blacklistPostShouldFail) {
+            return { ok: false, status: 500, json: async () => ({}) } as Response
           }
           const payload = JSON.parse(String(init?.body)) as { statement: string }
           const entry = { id: (blacklistByParent[key]?.length ?? 0) + 1, text: payload.statement }
@@ -101,6 +115,9 @@ describe('GenerationPanel', () => {
           const key = `spec:${specId}`
           if (method === 'GET') {
             return jsonResponse(blacklistByParent[key] ?? [])
+          }
+          if (blacklistPostShouldFail) {
+            return { ok: false, status: 500, json: async () => ({}) } as Response
           }
           const payload = JSON.parse(String(init?.body)) as { statement: string }
           const entry = { id: (blacklistByParent[key]?.length ?? 0) + 1, text: payload.statement }
@@ -411,6 +428,56 @@ describe('GenerationPanel', () => {
 
     expect(await screen.findByText('4')).toBeInTheDocument()
     expect(classifyRequests).toEqual([10, 10])
+    warnSpy.mockRestore()
+  })
+
+  it('clears auto-classifying state and still classifies when spec tree refresh fails', async () => {
+    specTreeByNeed = {
+      1: [
+        {
+          id: 10,
+          statement: 'Existing accepted spec',
+          complexity: null,
+          status: 'pending',
+          parent_spec_id: null,
+          latest_inspection_id: null,
+          children: [],
+        },
+      ],
+    }
+
+    render(<GenerationPanel needId={1} />)
+
+    expect(await screen.findByText('Existing accepted spec')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Generate' }))
+    expect(await screen.findByText('The system shall brake.')).toBeInTheDocument()
+
+    specTreeFailuresByNeed = { 1: 1 }
+    fireEvent.click(screen.getAllByRole('button', { name: 'Accept' })[0])
+
+    await waitFor(() => expect(classifyRequests).toEqual([10]))
+    await waitFor(() => expect(screen.queryByText('Classifying...')).not.toBeInTheDocument())
+    expect(screen.getByText('Spec tree request failed: HTTP 500')).toBeInTheDocument()
+  })
+
+  it('removes a rejected candidate and warns when blacklist persistence fails', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+
+    render(<GenerationPanel needId={1} />)
+
+    expect(await screen.findByLabelText('Generation model')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Generate' }))
+    expect(await screen.findByText('The system shall alert.')).toBeInTheDocument()
+
+    blacklistPostShouldFail = true
+    fireEvent.click(screen.getAllByRole('button', { name: 'Reject' })[1])
+
+    await waitFor(() =>
+      expect(screen.queryByText('The system shall alert.')).not.toBeInTheDocument(),
+    )
+    expect(screen.queryByText(/Blacklist request failed/)).not.toBeInTheDocument()
+    expect(warnSpy).toHaveBeenCalledTimes(1)
+    expect(warnSpy).toHaveBeenCalledWith('Blacklist reject failed', expect.any(Error))
     warnSpy.mockRestore()
   })
 

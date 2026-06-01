@@ -1,16 +1,16 @@
-import { FormEvent, useEffect, useState } from 'react'
+import { FormEvent, useCallback, useEffect, useState } from 'react'
 import {
   createNeedBlacklistEntry,
   createSpecBlacklistEntry,
-  fetchNeedBlacklist,
-  fetchSpecBlacklist,
 } from '../api/blacklist'
 import classifySpec from '../api/classification'
 import { generateChildSpecs, generateSpecs } from '../api/generation'
-import { fetchModels } from '../api/models'
-import { createChildSpec, createNeedSpec, fetchNeedSpecTree } from '../api/specs'
+import { createChildSpec, createNeedSpec } from '../api/specs'
+import { useClassifyingSpecs } from '../hooks/useClassifyingSpecs'
+import { useGenerationModels } from '../hooks/useGenerationModels'
+import { useParentBlacklist } from '../hooks/useParentBlacklist'
+import { useParentSpecTree } from '../hooks/useParentSpecTree'
 import type { GenerationCandidate } from '../types/generation'
-import type { Model } from '../types/model'
 import type { SpecTreeNode } from '../types/spec'
 import { GenerationCandidates } from './GenerationCandidates'
 import { GenerationForm } from './GenerationForm'
@@ -51,57 +51,32 @@ export function GenerationPanel({ rootNeedId, needId, parent, onSelectSpec }: Ge
   const effectiveRootNeedId = rootNeedId ?? needId ?? null
   const generationParent = parent ?? parentFromNeedId(effectiveRootNeedId)
   const selectedParentKey = parentKey(generationParent)
-  const [models, setModels] = useState<Model[]>([])
-  const [modelId, setModelId] = useState<number | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const handleError = useCallback((unknownError: unknown) => {
+    setError(errorMessage(unknownError))
+  }, [])
   const [count, setCount] = useState(5)
   const [candidates, setCandidates] = useState<GenerationCandidate[]>([])
-  const [blacklistCount, setBlacklistCount] = useState(0)
   const [allCandidatesBlocked, setAllCandidatesBlocked] = useState(false)
-  const [classifyingSpecIds, setClassifyingSpecIds] = useState<Set<number>>(new Set())
-  const [specs, setSpecs] = useState<SpecTreeNode[]>([])
-  const [error, setError] = useState<string | null>(null)
   const [isGenerating, setIsGenerating] = useState(false)
+  const { modelId, models, setModelId } = useGenerationModels(handleError)
+  const { blacklistCount, loadBlacklistCount } = useParentBlacklist()
+  const { clearSpecTree, loadSpecTree, setSpecComplexity, specs } = useParentSpecTree()
+  const { addClassifyingSpecId, classifyingSpecIds, removeClassifyingSpecId } = useClassifyingSpecs()
 
   useEffect(() => {
-    fetchModels()
-      .then((loadedModels) => {
-        const enabledModels = loadedModels.filter((model) => model.enabled)
-        setModels(enabledModels)
-        setModelId((currentModelId) => currentModelId ?? enabledModels[0]?.id ?? null)
-      })
-      .catch((loadError: unknown) => setError(errorMessage(loadError)))
-  }, [])
-
-  async function loadSpecTree(needId: number) {
-    const loadedSpecs = await fetchNeedSpecTree(needId)
-    setSpecs(loadedSpecs)
-    setError(null)
-  }
-
-  async function loadBlacklistCount(parentToLoad: GenerationParent | null) {
-    if (parentToLoad === null) {
-      setBlacklistCount(0)
-      return
-    }
-    const entries =
-      parentToLoad.kind === 'need'
-        ? await fetchNeedBlacklist(parentToLoad.id)
-        : await fetchSpecBlacklist(parentToLoad.id)
-    setBlacklistCount(entries.length)
-  }
-
-  useEffect(() => {
-    setSpecs([])
+    clearSpecTree()
     setCandidates([])
     setAllCandidatesBlocked(false)
     if (effectiveRootNeedId !== null) {
       loadSpecTree(effectiveRootNeedId)
-        .catch((loadError: unknown) => setError(errorMessage(loadError)))
+        .then(() => setError(null))
+        .catch(handleError)
     }
     loadBlacklistCount(generationParent).catch(() => {
-      setBlacklistCount(0)
+      void loadBlacklistCount(null)
     })
-  }, [effectiveRootNeedId, selectedParentKey])
+  }, [clearSpecTree, effectiveRootNeedId, handleError, loadBlacklistCount, selectedParentKey])
 
   async function handleGenerate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -134,28 +109,26 @@ export function GenerationPanel({ rootNeedId, needId, parent, onSelectSpec }: Ge
         generationParent.kind === 'need'
           ? await createNeedSpec(generationParent.id, { statement: candidate.statement })
           : await createChildSpec(generationParent.id, { statement: candidate.statement })
-      setClassifyingSpecIds((currentIds) => new Set(currentIds).add(createdSpec.id))
+      addClassifyingSpecId(createdSpec.id)
       setCandidates((currentCandidates) =>
         currentCandidates.filter((item) => item.index !== candidate.index),
       )
       if (effectiveRootNeedId !== null) {
-        await loadSpecTree(effectiveRootNeedId)
+        try {
+          await loadSpecTree(effectiveRootNeedId)
+          setError(null)
+        } catch (loadError: unknown) {
+          setError(errorMessage(loadError))
+        }
       }
       try {
         const classification = await classifySpec(createdSpec.id)
-        setSpecs((currentSpecs) =>
-          updateSpecComplexity(currentSpecs, createdSpec.id, classification.complexity),
-        )
+        setSpecComplexity(createdSpec.id, classification.complexity)
       } catch (classifyError: unknown) {
         console.warn('Auto-classify failed after accepting spec', classifyError)
       } finally {
-        setClassifyingSpecIds((currentIds) => {
-          const nextIds = new Set(currentIds)
-          nextIds.delete(createdSpec.id)
-          return nextIds
-        })
+        removeClassifyingSpecId(createdSpec.id)
       }
-      setError(null)
     } catch (acceptError: unknown) {
       setError(errorMessage(acceptError))
     }
@@ -223,17 +196,4 @@ export function GenerationPanel({ rootNeedId, needId, parent, onSelectSpec }: Ge
       />
     </section>
   )
-}
-
-function updateSpecComplexity(
-  specs: SpecTreeNode[],
-  specId: number,
-  complexity: number,
-): SpecTreeNode[] {
-  return specs.map((spec) => {
-    if (spec.id === specId) {
-      return { ...spec, complexity }
-    }
-    return { ...spec, children: updateSpecComplexity(spec.children, specId, complexity) }
-  })
 }
