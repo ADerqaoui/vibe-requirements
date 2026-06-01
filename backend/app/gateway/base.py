@@ -6,6 +6,10 @@ from typing import Protocol
 class GatewayError(Exception):
     """Raised when a gateway call cannot complete cleanly."""
 
+    def __init__(self, message: str, retryable: bool = True):
+        super().__init__(message)
+        self.retryable = retryable
+
 
 @dataclass(frozen=True)
 class GatewayResult:

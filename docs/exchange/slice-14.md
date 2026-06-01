@@ -15,6 +15,20 @@
 | --- | --- | --- |
 -->
 
+[Codex — 2026-06-02] Implemented schema-free cloud gateway adapters for Anthropic, OpenAI, and Deepseek. The factory now routes cloud providers to concrete adapters, cloud adapters skip pre-call health checks, missing keys/model ids fail before HTTP, 401/403 are non-retryable auth failures, 429/5xx are retryable, malformed responses produce clear `GatewayError`s, and OpenAI/Deepseek share an OpenAI-compatible adapter. Added README dev-only curl smoke instructions. No seed changes; cloud models remain disabled by default.
+
+| Acceptance criterion | Test | Covered? |
+| --- | --- | --- |
+| Enabling a cloud model and calling `/api/models/{id}/complete` can produce a response, token counts, non-zero cost, and a cloud-provider `call_logs` row. | `backend/tests/test_gateway_api.py` — `test_complete_api_cloud_model_uses_cloud_timeout_and_logs`; `backend/tests/test_gateway_service.py` — `test_service_logs_success_with_frozen_cost_and_fx` | Yes |
+| Manual cloud smoke instructions are documented and not run in CI. | `README.md` — `Dev smoke: manual cloud completion`; no live smoke run | Yes |
+| Anthropic adapter success and error-path mappings are mocked, with no live cloud calls. | `backend/tests/test_gateway_anthropic.py` | Yes |
+| OpenAI adapter success and error-path mappings are mocked, with no live cloud calls. | `backend/tests/test_gateway_openai.py` | Yes |
+| Deepseek adapter success and error-path mappings are mocked, with no live cloud calls. | `backend/tests/test_gateway_deepseek.py` | Yes |
+| Factory routes `anthropic`, `openai`, and `deepseek` to real adapters and rejects unknown providers. | `backend/tests/test_gateway_factory.py` | Yes |
+| Previous cloud "adapter not implemented" behavior is removed from factory/tests. | `grep -R "adapter not implemented\|NotImplementedGateway" backend/app backend/tests README.md` -> no matches | Yes |
+| Cloud models remain `enabled=False` by default; seed unchanged. | Existing `backend/tests/test_models.py` — `test_seed_models_and_settings_is_idempotent`; no changes to `backend/app/seed/models_seed.py` | Yes |
+| `pytest` and `pnpm test` pass with no live network access. | `cd backend && .venv/bin/pytest` -> 147 passed; `cd frontend && PATH="$HOME/.nvm/versions/node/v24.16.0/bin:$PATH" pnpm test` -> 24 passed | Yes |
+
 ## ChatGPT — QA review
 - [ChatGPT — YYYY-MM-DD] ...
 

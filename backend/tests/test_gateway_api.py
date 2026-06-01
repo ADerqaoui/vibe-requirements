@@ -10,6 +10,7 @@ from app.db import get_db
 from app.gateway.base import GatewayError, GatewayResult
 from app.models.call_log import CallLog
 from app.models.model import Model
+from app.models.setting import Setting
 
 
 class FakeGateway:
@@ -17,9 +18,11 @@ class FakeGateway:
 
     def __init__(self, outcome: GatewayResult | GatewayError):
         self.outcome = outcome
+        self.timeouts: list[float] = []
 
     async def health_check(self, timeout_seconds: float) -> None:
         """Always healthy."""
+        self.timeouts.append(timeout_seconds)
 
     async def complete(
         self,
@@ -28,6 +31,7 @@ class FakeGateway:
         timeout_seconds: float,
     ) -> GatewayResult:
         """Return or raise the configured outcome."""
+        self.timeouts.append(timeout_seconds)
         if isinstance(self.outcome, GatewayError):
             raise self.outcome
         return self.outcome
@@ -134,7 +138,7 @@ async def test_complete_api_gateway_failure_returns_502_and_logs(
     use_db_session(api_app, db_session)
 
     async def override_gateway_factory():
-        return lambda _model, _settings: FakeGateway(GatewayError("adapter not implemented"))
+        return lambda _model, _settings: FakeGateway(GatewayError("provider down"))
 
     api_app.dependency_overrides[get_gateway_factory] = override_gateway_factory
 
@@ -144,5 +148,45 @@ async def test_complete_api_gateway_failure_returns_502_and_logs(
 
     log = db_session.scalars(select(CallLog)).one()
     assert response.status_code == 502
-    assert "adapter not implemented" in response.json()["detail"]
+    assert "provider down" in response.json()["detail"]
     assert log.status == "failure"
+
+
+@pytest.mark.asyncio
+async def test_complete_api_cloud_model_uses_cloud_timeout_and_logs(
+    api_app: FastAPI,
+    db_session: Session,
+) -> None:
+    """Cloud models use the injected gateway path and cloud timeout."""
+    model = Model(
+        provider="openai",
+        name="gpt",
+        api_model_id="gpt-test",
+        tier="high",
+        input_cost_per_1k=1,
+        output_cost_per_1k=2,
+        enabled=1,
+    )
+    db_session.add_all([model, Setting(key="fx_rate_usd_sek", value="10")])
+    db_session.flush()
+    model_id = model.id
+    db_session.commit()
+    use_db_session(api_app, db_session)
+    fake_gateway = FakeGateway(GatewayResult("cloud ok", 1000, 1000))
+
+    async def override_gateway_factory():
+        return lambda _model, _settings: fake_gateway
+
+    api_app.dependency_overrides[get_gateway_factory] = override_gateway_factory
+
+    transport = ASGITransport(app=api_app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post(f"/api/models/{model_id}/complete", json={"prompt": "hello"})
+
+    log = db_session.scalars(select(CallLog)).one()
+    assert response.status_code == 200
+    assert response.json()["text"] == "cloud ok"
+    assert response.json()["cost_sek"] > 0
+    assert fake_gateway.timeouts == [60.0, 60.0]
+    assert log.provider == "openai"
+    assert log.cost_sek > 0
