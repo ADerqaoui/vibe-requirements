@@ -5,6 +5,7 @@ import {
   fetchNeedBlacklist,
   fetchSpecBlacklist,
 } from '../api/blacklist'
+import classifySpec from '../api/classification'
 import { generateChildSpecs, generateSpecs } from '../api/generation'
 import { fetchModels } from '../api/models'
 import { createChildSpec, createNeedSpec, fetchNeedSpecTree } from '../api/specs'
@@ -13,7 +14,7 @@ import type { Model } from '../types/model'
 import type { SpecTreeNode } from '../types/spec'
 import { GenerationCandidates } from './GenerationCandidates'
 import { GenerationForm } from './GenerationForm'
-import { GenerationPanelHeader } from './GenerationPanelHeader'
+import GenerationPanelHeader from './GenerationPanelHeader'
 import { SpecList } from './SpecList'
 
 export type GenerationParent = {
@@ -49,12 +50,14 @@ function parentKey(parent: GenerationParent | null): string {
 export function GenerationPanel({ rootNeedId, needId, parent, onSelectSpec }: GenerationPanelProps) {
   const effectiveRootNeedId = rootNeedId ?? needId ?? null
   const generationParent = parent ?? parentFromNeedId(effectiveRootNeedId)
+  const selectedParentKey = parentKey(generationParent)
   const [models, setModels] = useState<Model[]>([])
   const [modelId, setModelId] = useState<number | null>(null)
   const [count, setCount] = useState(5)
   const [candidates, setCandidates] = useState<GenerationCandidate[]>([])
   const [blacklistCount, setBlacklistCount] = useState(0)
   const [allCandidatesBlocked, setAllCandidatesBlocked] = useState(false)
+  const [classifyingSpecIds, setClassifyingSpecIds] = useState<Set<number>>(new Set())
   const [specs, setSpecs] = useState<SpecTreeNode[]>([])
   const [error, setError] = useState<string | null>(null)
   const [isGenerating, setIsGenerating] = useState(false)
@@ -89,20 +92,16 @@ export function GenerationPanel({ rootNeedId, needId, parent, onSelectSpec }: Ge
 
   useEffect(() => {
     setSpecs([])
-    if (effectiveRootNeedId === null) {
-      return
-    }
-    loadSpecTree(effectiveRootNeedId)
-      .catch((loadError: unknown) => setError(errorMessage(loadError)))
-  }, [effectiveRootNeedId])
-
-  useEffect(() => {
     setCandidates([])
     setAllCandidatesBlocked(false)
+    if (effectiveRootNeedId !== null) {
+      loadSpecTree(effectiveRootNeedId)
+        .catch((loadError: unknown) => setError(errorMessage(loadError)))
+    }
     loadBlacklistCount(generationParent).catch(() => {
       setBlacklistCount(0)
     })
-  }, [parentKey(generationParent)])
+  }, [effectiveRootNeedId, selectedParentKey])
 
   async function handleGenerate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -131,16 +130,30 @@ export function GenerationPanel({ rootNeedId, needId, parent, onSelectSpec }: Ge
       return
     }
     try {
-      if (generationParent.kind === 'need') {
-        await createNeedSpec(generationParent.id, { statement: candidate.statement })
-      } else {
-        await createChildSpec(generationParent.id, { statement: candidate.statement })
-      }
+      const createdSpec =
+        generationParent.kind === 'need'
+          ? await createNeedSpec(generationParent.id, { statement: candidate.statement })
+          : await createChildSpec(generationParent.id, { statement: candidate.statement })
+      setClassifyingSpecIds((currentIds) => new Set(currentIds).add(createdSpec.id))
       setCandidates((currentCandidates) =>
         currentCandidates.filter((item) => item.index !== candidate.index),
       )
       if (effectiveRootNeedId !== null) {
         await loadSpecTree(effectiveRootNeedId)
+      }
+      try {
+        const classification = await classifySpec(createdSpec.id)
+        setSpecs((currentSpecs) =>
+          updateSpecComplexity(currentSpecs, createdSpec.id, classification.complexity),
+        )
+      } catch (classifyError: unknown) {
+        console.warn('Auto-classify failed after accepting spec', classifyError)
+      } finally {
+        setClassifyingSpecIds((currentIds) => {
+          const nextIds = new Set(currentIds)
+          nextIds.delete(createdSpec.id)
+          return nextIds
+        })
       }
       setError(null)
     } catch (acceptError: unknown) {
@@ -175,9 +188,21 @@ export function GenerationPanel({ rootNeedId, needId, parent, onSelectSpec }: Ge
     <section className="mt-6 border-t border-neutral-200 pt-5">
       <GenerationPanelHeader blacklistCount={blacklistCount} />
       {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
-      <GenerationForm count={count} isGenerating={isGenerating} modelId={modelId} models={models} onCountChange={setCount} onGenerate={handleGenerate} onModelIdChange={setModelId} />
+      <GenerationForm
+        count={count}
+        isGenerating={isGenerating}
+        modelId={modelId}
+        models={models}
+        onCountChange={setCount}
+        onGenerate={handleGenerate}
+        onModelIdChange={setModelId}
+      />
 
-      <GenerationCandidates candidates={candidates} onAccept={handleAccept} onReject={handleReject} />
+      <GenerationCandidates
+        candidates={candidates}
+        onAccept={handleAccept}
+        onReject={handleReject}
+      />
       {allCandidatesBlocked && (
         <p className="mt-4 text-sm text-neutral-600">
           All candidates were blocked by the blacklist — try again or rephrase.
@@ -186,6 +211,7 @@ export function GenerationPanel({ rootNeedId, needId, parent, onSelectSpec }: Ge
 
       <h3 className="mt-5 text-sm font-semibold text-neutral-900">Specs</h3>
       <SpecList
+        classifyingSpecIds={classifyingSpecIds}
         onSelectSpec={onSelectSpec}
         onSpecChanged={() => {
           if (effectiveRootNeedId !== null) {
@@ -197,4 +223,17 @@ export function GenerationPanel({ rootNeedId, needId, parent, onSelectSpec }: Ge
       />
     </section>
   )
+}
+
+function updateSpecComplexity(
+  specs: SpecTreeNode[],
+  specId: number,
+  complexity: number,
+): SpecTreeNode[] {
+  return specs.map((spec) => {
+    if (spec.id === specId) {
+      return { ...spec, complexity }
+    }
+    return { ...spec, children: updateSpecComplexity(spec.children, specId, complexity) }
+  })
 }

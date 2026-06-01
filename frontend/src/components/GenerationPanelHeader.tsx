@@ -12,3 +12,5 @@ export function GenerationPanelHeader({ blacklistCount }: GenerationPanelHeaderP
     </div>
   )
 }
+
+export default GenerationPanelHeader

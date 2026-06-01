@@ -42,6 +42,9 @@ describe('GenerationPanel', () => {
   let candidatesByNeed: Record<number, GenerationCandidate[]>
   let candidatesBySpec: Record<number, GenerationCandidate[]>
   let blacklistByParent: Record<string, { id: number; text: string }[]>
+  let classifyHandler: (specId: number) => Promise<Response> | Response
+  let classifyRequests: number[]
+  let requestLog: string[]
 
   beforeEach(() => {
     specTreeByNeed = { 1: [], 2: [] }
@@ -57,12 +60,17 @@ describe('GenerationPanel', () => {
       20: [{ index: 1, statement: 'The controller shall trace.' }],
     }
     blacklistByParent = {}
+    classifyRequests = []
+    requestLog = []
+    classifyHandler = (specId: number) =>
+      jsonResponse({ spec_id: specId, votes: [{ model_id: 3, vote: 3 }], complexity: 3 })
 
     vi.stubGlobal(
       'fetch',
       vi.fn(async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
         const path = input.toString()
         const method = init?.method ?? 'GET'
+        requestLog.push(`${method} ${path}`)
 
         if (path === '/api/models' && method === 'GET') {
           return jsonResponse(models)
@@ -111,6 +119,12 @@ describe('GenerationPanel', () => {
         if (path.startsWith('/api/specs/') && path.endsWith('/generate') && method === 'POST') {
           const specId = Number(path.replace('/api/specs/', '').replace('/generate', ''))
           return jsonResponse({ candidates: candidatesBySpec[specId] ?? [] })
+        }
+
+        if (path.startsWith('/api/specs/') && path.endsWith('/classify') && method === 'POST') {
+          const specId = Number(path.replace('/api/specs/', '').replace('/classify', ''))
+          classifyRequests.push(specId)
+          return await classifyHandler(specId)
         }
 
         if (path.startsWith('/api/needs/') && path.endsWith('/specs') && method === 'POST') {
@@ -164,6 +178,7 @@ describe('GenerationPanel', () => {
   })
 
   afterEach(() => {
+    vi.restoreAllMocks()
     vi.unstubAllGlobals()
   })
 
@@ -323,6 +338,80 @@ describe('GenerationPanel', () => {
     expect(screen.getByText('Child spec').closest('li')).toContainElement(
       screen.getByText('The controller shall trace.'),
     )
+  })
+
+  it('auto-classifies an accepted spec and updates the new tree node in place', async () => {
+    let resolveClassify: (response: Response) => void = () => undefined
+    classifyHandler = () =>
+      new Promise<Response>((resolve) => {
+        resolveClassify = resolve
+      })
+
+    render(<GenerationPanel needId={1} />)
+
+    expect(await screen.findByLabelText('Generation model')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Generate' }))
+    expect(await screen.findByText('The system shall brake.')).toBeInTheDocument()
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Accept' })[0])
+
+    await waitFor(() => expect(screen.getAllByText('The system shall brake.')).toHaveLength(1))
+    expect(await screen.findByText('Classifying...')).toBeInTheDocument()
+    expect(classifyRequests).toEqual([10])
+    expect(requestLog.indexOf('POST /api/needs/1/specs')).toBeLessThan(
+      requestLog.indexOf('POST /api/specs/10/classify'),
+    )
+    expect(requestLog.filter((entry) => entry === 'GET /api/needs/1/spec-tree')).toHaveLength(2)
+
+    resolveClassify(
+      jsonResponse({ spec_id: 10, votes: [{ model_id: 3, vote: 5 }], complexity: 5 }),
+    )
+
+    await waitFor(() => expect(screen.queryByText('Classifying...')).not.toBeInTheDocument())
+    expect(screen.getByText('5')).toBeInTheDocument()
+    expect(requestLog.filter((entry) => entry === 'GET /api/needs/1/spec-tree')).toHaveLength(2)
+  })
+
+  it('keeps accepted specs visible when auto-classification fails and leaves manual classify usable', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    let classifyAttempts = 0
+    classifyHandler = (specId: number) => {
+      classifyAttempts += 1
+      if (classifyAttempts === 1) {
+        return { ok: false, status: 500, json: async () => ({}) } as Response
+      }
+      return jsonResponse({
+        spec_id: specId,
+        votes: [{ model_id: 3, vote: 4 }],
+        complexity: 4,
+      })
+    }
+
+    render(<GenerationPanel needId={1} />)
+
+    expect(await screen.findByLabelText('Generation model')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Generate' }))
+    expect(await screen.findByText('The system shall brake.')).toBeInTheDocument()
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Accept' })[0])
+
+    await waitFor(() => expect(screen.getAllByText('The system shall brake.')).toHaveLength(1))
+    await waitFor(() =>
+      expect(warnSpy).toHaveBeenCalledWith(
+        'Auto-classify failed after accepting spec',
+        expect.any(Error),
+      ),
+    )
+    expect(screen.queryByText('Classification request failed: HTTP 500')).not.toBeInTheDocument()
+    expect(screen.getByText('The system shall brake.')).toBeInTheDocument()
+    expect(screen.queryByText('Classifying...')).not.toBeInTheDocument()
+    expect(screen.getByText('—')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Classify' }))
+
+    expect(await screen.findByText('4')).toBeInTheDocument()
+    expect(classifyRequests).toEqual([10, 10])
+    warnSpy.mockRestore()
   })
 
   it('clears stale candidates on Need-Spec, Spec-Spec, and Spec-Need switches', async () => {
