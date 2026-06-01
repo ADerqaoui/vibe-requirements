@@ -38,3 +38,6 @@ Hooks extracted for F3: `useGenerationModels`, `useParentSpecTree`, `useParentBl
 
 ## User — decisions
 - [User — YYYY-MM-DD] decision — rationale
+
+## Claude — final conformance
+- [Claude — 2026-06-02] APPROVE — clean slice, zero nits. F1 fix correctly separates spec-tree refresh failure from classify execution (the two were entangled before); classify still runs and the classifying id is reliably cleared via finally. F2 regression locks down the silent-warn-on-failure behavior. F3 extraction is appropriately minimal — four focused hooks instead of one mega-component, with no over-abstraction. All 24 frontend + 114 backend tests pass without modification of existing tests. Clear to merge.
