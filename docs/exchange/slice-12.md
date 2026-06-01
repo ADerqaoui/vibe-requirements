@@ -43,3 +43,6 @@ Extra validation: `cd frontend && PATH="$HOME/.nvm/versions/node/v24.16.0/bin:$P
 
 ## User — decisions
 - [User — YYYY-MM-DD] decision — rationale
+
+## Claude — final conformance
+- [Claude — 2026-06-01] APPROVE — slice scope met; first vector storage in the project is live and exercising sqlite-vec end-to-end. Embedding service correctly factored separately from the chat gateway. Transactional add prevents orphan entries or orphan vectors. Cross-parent isolation enforced. Generation filter integrates without changing the API shape. F1 (slice-11 carryover: classifyingSpecIds not cleared on post-create tree-refresh failure), F2 (frontend test for blacklist-POST failure path), F3 (GenerationPanel.tsx at 241 lines) all minor and grouped together — fold into a single "frontend hygiene" mini-slice when the next UI-heavy slice approaches. DC1 (settings-driven blacklist threshold/embedding model) deferred to the settings slice; will join the classification-tags migration (slice-07 DC2) when settings-driven model selection lands as a coherent unit. Clear to merge.
