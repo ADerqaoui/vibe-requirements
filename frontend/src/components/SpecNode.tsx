@@ -4,7 +4,7 @@ import type { SpecInspection } from '../types/inspection'
 import type { SpecTreeNode } from '../types/spec'
 
 type SpecNodeProps = {
-  autoClassifyingSpecIds: Set<number>
+  classifyingSpecIds: Set<number>
   complexityBySpec: Record<number, number>
   inspectionBySpec: Record<number, SpecInspection>
   loadingInspectionId: number | null
@@ -47,7 +47,7 @@ function verdictClasses(verdict: string): string {
 }
 
 export function SpecNode({
-  autoClassifyingSpecIds,
+  classifyingSpecIds,
   complexityBySpec,
   inspectionBySpec,
   loadingInspectionId,
@@ -65,7 +65,7 @@ export function SpecNode({
   const inspection = inspectionBySpec[spec.id]
   const status = statusBySpec[spec.id] ?? spec.status
   const isSelected = selectedSpecId === spec.id
-  const isAutoClassifying = autoClassifyingSpecIds.has(spec.id)
+  const isAutoClassifying = classifyingSpecIds.has(spec.id)
 
   return (
     <li
@@ -142,7 +142,7 @@ export function SpecNode({
         <ul className="mt-2 space-y-2 border-l border-neutral-200 pl-4">
           {spec.children.map((child) => (
             <SpecNode
-              autoClassifyingSpecIds={autoClassifyingSpecIds}
+              classifyingSpecIds={classifyingSpecIds}
               complexityBySpec={complexityBySpec}
               inspectionBySpec={inspectionBySpec}
               key={child.id}

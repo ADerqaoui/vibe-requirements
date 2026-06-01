@@ -11,6 +11,7 @@ from app.models.model import Model
 from app.models.need import Need
 from app.models.spec import Spec
 from app.schemas.generation import GenerationCandidate, GenerationResult
+from app.services.blacklist_service import BlacklistService
 from app.services.gateway_service import GatewayRuntime, complete_model
 
 ParentKind = Literal["need", "spec"]
@@ -36,6 +37,7 @@ async def generate_for_parent(
     gateway: Gateway,
     count: int,
     runtime: GenerationRuntime,
+    blacklist_service: BlacklistService | None = None,
 ) -> GenerationResult:
     """Generate stateless child spec candidates from a Need or Spec parent."""
     parent_statement = _parent_statement(db, parent_kind, parent_id)
@@ -53,6 +55,12 @@ async def generate_for_parent(
             ),
         )
         statements = parse_spec_candidates(completion.text, count)
+        if blacklist_service is not None:
+            statements = await blacklist_service.filter_against_blacklist(
+                parent_kind,
+                parent_id,
+                statements,
+            )
     except GatewayError:
         raise
     except ParseError:

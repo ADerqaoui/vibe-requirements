@@ -1,5 +1,11 @@
 import { FormEvent, useEffect, useState } from 'react'
-import { classifySpec } from '../api/classification'
+import {
+  createNeedBlacklistEntry,
+  createSpecBlacklistEntry,
+  fetchNeedBlacklist,
+  fetchSpecBlacklist,
+} from '../api/blacklist'
+import classifySpec from '../api/classification'
 import { generateChildSpecs, generateSpecs } from '../api/generation'
 import { fetchModels } from '../api/models'
 import { createChildSpec, createNeedSpec, fetchNeedSpecTree } from '../api/specs'
@@ -8,6 +14,7 @@ import type { Model } from '../types/model'
 import type { SpecTreeNode } from '../types/spec'
 import { GenerationCandidates } from './GenerationCandidates'
 import { GenerationForm } from './GenerationForm'
+import GenerationPanelHeader from './GenerationPanelHeader'
 import { SpecList } from './SpecList'
 
 export type GenerationParent = {
@@ -43,10 +50,13 @@ function parentKey(parent: GenerationParent | null): string {
 export function GenerationPanel({ rootNeedId, needId, parent, onSelectSpec }: GenerationPanelProps) {
   const effectiveRootNeedId = rootNeedId ?? needId ?? null
   const generationParent = parent ?? parentFromNeedId(effectiveRootNeedId)
+  const selectedParentKey = parentKey(generationParent)
   const [models, setModels] = useState<Model[]>([])
   const [modelId, setModelId] = useState<number | null>(null)
   const [count, setCount] = useState(5)
   const [candidates, setCandidates] = useState<GenerationCandidate[]>([])
+  const [blacklistCount, setBlacklistCount] = useState(0)
+  const [allCandidatesBlocked, setAllCandidatesBlocked] = useState(false)
   const [classifyingSpecIds, setClassifyingSpecIds] = useState<Set<number>>(new Set())
   const [specs, setSpecs] = useState<SpecTreeNode[]>([])
   const [error, setError] = useState<string | null>(null)
@@ -68,18 +78,30 @@ export function GenerationPanel({ rootNeedId, needId, parent, onSelectSpec }: Ge
     setError(null)
   }
 
-  useEffect(() => {
-    setSpecs([])
-    if (effectiveRootNeedId === null) {
+  async function loadBlacklistCount(parentToLoad: GenerationParent | null) {
+    if (parentToLoad === null) {
+      setBlacklistCount(0)
       return
     }
-    loadSpecTree(effectiveRootNeedId)
-      .catch((loadError: unknown) => setError(errorMessage(loadError)))
-  }, [effectiveRootNeedId])
+    const entries =
+      parentToLoad.kind === 'need'
+        ? await fetchNeedBlacklist(parentToLoad.id)
+        : await fetchSpecBlacklist(parentToLoad.id)
+    setBlacklistCount(entries.length)
+  }
 
   useEffect(() => {
+    setSpecs([])
     setCandidates([])
-  }, [parentKey(generationParent)])
+    setAllCandidatesBlocked(false)
+    if (effectiveRootNeedId !== null) {
+      loadSpecTree(effectiveRootNeedId)
+        .catch((loadError: unknown) => setError(errorMessage(loadError)))
+    }
+    loadBlacklistCount(generationParent).catch(() => {
+      setBlacklistCount(0)
+    })
+  }, [effectiveRootNeedId, selectedParentKey])
 
   async function handleGenerate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -87,12 +109,14 @@ export function GenerationPanel({ rootNeedId, needId, parent, onSelectSpec }: Ge
       return
     }
     setIsGenerating(true)
+    setAllCandidatesBlocked(false)
     try {
       const result =
         generationParent.kind === 'need'
           ? await generateSpecs(generationParent.id, { model_id: modelId, count })
           : await generateChildSpecs(generationParent.id, { model_id: modelId, count })
       setCandidates(result.candidates)
+      setAllCandidatesBlocked(result.candidates.length === 0)
       setError(null)
     } catch (generateError: unknown) {
       setError(errorMessage(generateError))
@@ -137,10 +161,23 @@ export function GenerationPanel({ rootNeedId, needId, parent, onSelectSpec }: Ge
     }
   }
 
-  function handleReject(candidate: GenerationCandidate) {
+  async function handleReject(candidate: GenerationCandidate) {
+    if (generationParent === null) {
+      return
+    }
     setCandidates((currentCandidates) =>
       currentCandidates.filter((item) => item.index !== candidate.index),
     )
+    try {
+      if (generationParent.kind === 'need') {
+        await createNeedBlacklistEntry(generationParent.id, { statement: candidate.statement })
+      } else {
+        await createSpecBlacklistEntry(generationParent.id, { statement: candidate.statement })
+      }
+      await loadBlacklistCount(generationParent)
+    } catch (rejectError: unknown) {
+      console.warn('Blacklist reject failed', rejectError)
+    }
   }
 
   if (generationParent === null) {
@@ -149,7 +186,7 @@ export function GenerationPanel({ rootNeedId, needId, parent, onSelectSpec }: Ge
 
   return (
     <section className="mt-6 border-t border-neutral-200 pt-5">
-      <h3 className="text-sm font-semibold text-neutral-900">Generate specs</h3>
+      <GenerationPanelHeader blacklistCount={blacklistCount} />
       {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
       <GenerationForm
         count={count}
@@ -166,10 +203,15 @@ export function GenerationPanel({ rootNeedId, needId, parent, onSelectSpec }: Ge
         onAccept={handleAccept}
         onReject={handleReject}
       />
+      {allCandidatesBlocked && (
+        <p className="mt-4 text-sm text-neutral-600">
+          All candidates were blocked by the blacklist — try again or rephrase.
+        </p>
+      )}
 
       <h3 className="mt-5 text-sm font-semibold text-neutral-900">Specs</h3>
       <SpecList
-        autoClassifyingSpecIds={classifyingSpecIds}
+        classifyingSpecIds={classifyingSpecIds}
         onSelectSpec={onSelectSpec}
         onSpecChanged={() => {
           if (effectiveRootNeedId !== null) {

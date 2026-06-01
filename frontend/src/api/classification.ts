@@ -7,3 +7,5 @@ export async function classifySpec(specId: number): Promise<ClassificationResult
   }
   return (await response.json()) as ClassificationResult
 }
+
+export default classifySpec
