@@ -2,6 +2,7 @@
 import pytest
 
 from app.gateway.anthropic import AnthropicGateway
+from gateway_cloud_helpers import assert_invalid_json_response
 from gateway_cloud_helpers import assert_malformed_response
 from gateway_cloud_helpers import assert_missing_configuration
 from gateway_cloud_helpers import assert_network_failure
@@ -53,6 +54,12 @@ async def test_anthropic_adapter_maps_status_errors(
 async def test_anthropic_adapter_rejects_malformed_response() -> None:
     """Malformed Anthropic payloads become GatewayError values."""
     await assert_malformed_response(AnthropicGateway, "anthropic", {"content": [], "usage": {}})
+
+
+@pytest.mark.asyncio
+async def test_anthropic_adapter_rejects_invalid_json_response() -> None:
+    """Invalid JSON Anthropic payloads become non-retryable malformed responses."""
+    await assert_invalid_json_response(AnthropicGateway, "anthropic")
 
 
 @pytest.mark.asyncio

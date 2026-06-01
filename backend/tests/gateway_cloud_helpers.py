@@ -91,6 +91,26 @@ async def assert_malformed_response(
     assert raised.value.retryable is False
 
 
+async def assert_invalid_json_response(gateway_class: type, provider: str) -> None:
+    """Assert invalid JSON bodies are non-retryable malformed responses."""
+    calls = 0
+
+    async def handler(_request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        return httpx.Response(200, content=b"not-json")
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    gateway = gateway_class("secret", "provider-model", client)
+
+    with pytest.raises(GatewayError, match=f"{provider} malformed response") as raised:
+        await gateway.complete("hello", None, 1)
+    await client.aclose()
+
+    assert raised.value.retryable is False
+    assert calls == 1
+
+
 async def assert_network_failure(gateway_class: type, provider: str) -> None:
     """Assert network failures stay retryable GatewayError values."""
 

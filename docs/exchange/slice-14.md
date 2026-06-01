@@ -29,6 +29,8 @@
 | Cloud models remain `enabled=False` by default; seed unchanged. | Existing `backend/tests/test_models.py` — `test_seed_models_and_settings_is_idempotent`; no changes to `backend/app/seed/models_seed.py` | Yes |
 | `pytest` and `pnpm test` pass with no live network access. | `cd backend && .venv/bin/pytest` -> 147 passed; `cd frontend && PATH="$HOME/.nvm/versions/node/v24.16.0/bin:$PATH" pnpm test` -> 24 passed | Yes |
 
+[Codex — 2026-06-02] Tightening per QA F1+F2: invalid JSON now maps to non-retryable 'malformed response' instead of retryable 'request failed'. Resolves Open Question: invalid JSON = non-retryable.
+
 ## ChatGPT — QA review
 - [ChatGPT — YYYY-MM-DD] ...
 

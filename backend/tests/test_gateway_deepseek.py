@@ -2,6 +2,7 @@
 import pytest
 
 from app.gateway.deepseek import DeepseekGateway
+from gateway_cloud_helpers import assert_invalid_json_response
 from gateway_cloud_helpers import assert_malformed_response
 from gateway_cloud_helpers import assert_missing_configuration
 from gateway_cloud_helpers import assert_network_failure
@@ -46,6 +47,12 @@ async def test_deepseek_adapter_maps_status_errors(
 async def test_deepseek_adapter_rejects_malformed_response() -> None:
     """Malformed Deepseek payloads become GatewayError values."""
     await assert_malformed_response(DeepseekGateway, "deepseek", {"choices": [], "usage": {}})
+
+
+@pytest.mark.asyncio
+async def test_deepseek_adapter_rejects_invalid_json_response() -> None:
+    """Invalid JSON Deepseek payloads become non-retryable malformed responses."""
+    await assert_invalid_json_response(DeepseekGateway, "deepseek")
 
 
 @pytest.mark.asyncio

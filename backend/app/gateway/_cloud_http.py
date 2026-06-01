@@ -1,4 +1,6 @@
 """Shared HTTP helpers for cloud gateway adapters."""
+import json
+
 import httpx
 
 from app.gateway.base import GatewayError
@@ -40,6 +42,7 @@ async def request_json(
     payload: dict[str, object],
 ) -> dict[str, object]:
     """Run a cloud HTTP request and return a JSON object."""
+    provider = _provider_from_url(url)
     try:
         if client is not None:
             response = await client.request(
@@ -59,14 +62,17 @@ async def request_json(
                     timeout=timeout_seconds,
                 )
         if response.status_code >= 400:
-            raise map_status_error(_provider_from_url(url), response.status_code)
-        body = response.json()
+            raise map_status_error(provider, response.status_code)
+        try:
+            body = response.json()
+        except json.JSONDecodeError as error:
+            raise GatewayError(f"{provider} malformed response", retryable=False) from error
     except GatewayError:
         raise
-    except (ValueError, httpx.HTTPError) as error:
-        raise GatewayError(f"{_provider_from_url(url)} request failed: {error}") from error
+    except httpx.HTTPError as error:
+        raise GatewayError(f"{provider} request failed: {error}") from error
     if not isinstance(body, dict):
-        raise GatewayError(f"{_provider_from_url(url)} malformed response", retryable=False)
+        raise GatewayError(f"{provider} malformed response", retryable=False)
     return body
 
 
