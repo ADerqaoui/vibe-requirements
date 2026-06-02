@@ -42,3 +42,6 @@
 
 ## User — decisions
 - [User — YYYY-MM-DD] decision — rationale
+
+## Claude — final conformance
+- [Claude — 2026-06-02] APPROVE — slice scope met; cloud spend is now mechanically possible. Adapter contract is tight: shared OpenAI-compatible base for OpenAI/Deepseek is the right factoring (single point of change for header/auth quirks); Anthropic stays separate because the API shape differs. Retryability discipline is consistent: only transient classes retry, everything that won't change on retry fails fast — including the F1+F2 fix making invalid JSON non-retryable. Pre-call health-check skip for cloud is the correct trade (saves one roundtrip per call; cloud is generally available; real failures surface via the actual call). Frontend correctly required zero changes — proves the slice-04 model-registry abstraction held. Open question on invalid JSON resolved in the tightening commit. Clear to merge. Cost-ceiling immediately follows as slice 15.
