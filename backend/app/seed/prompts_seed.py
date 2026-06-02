@@ -29,6 +29,7 @@ INSPECT_SPEC_TEMPLATE = (
 )
 
 DEFAULT_PROMPT_ROWS = (
+    # generate_need_to_spec and generate_spec_to_child intentionally share an identical template: pre-slice-16 code used a single make_spec_prompt() for both paths. Differentiating spec->child (and fixing the 'Need:' label when the parent is a Spec) is a behavior change deferred to a future prompt-quality/editing slice.
     {
         "task": "generate_need_to_spec",
         "name": "Generate Need to Spec",

@@ -28,6 +28,48 @@ BASE_TABLES = {
     "settings",
 }
 
+EXPECTED_GENERATE_NEED_TO_SPEC = (
+    "Generate child specifications for this Need.\n"
+    "Need: {parent_statement}\n"
+    "Output exactly {count} concise child specifications.\n"
+    "Use a numbered list. Do not include commentary, headings, or explanations."
+)
+
+EXPECTED_GENERATE_SPEC_TO_CHILD = (
+    "Generate child specifications for this Need.\n"
+    "Need: {parent_statement}\n"
+    "Output exactly {count} concise child specifications.\n"
+    "Use a numbered list. Do not include commentary, headings, or explanations."
+)
+
+EXPECTED_CLASSIFY_SPEC = (
+    "Classify the complexity of this specification from 1 to 5.\n"
+    "1 = trivial, 2 = simple, 3 = moderate, 4 = complex, 5 = very complex.\n"
+    "Return only one integer from 1 to 5 with no commentary.\n"
+    "Specification: {spec_statement}"
+)
+
+EXPECTED_INSPECT_SPEC = (
+    "Evaluate this requirement specification against the five criteria below.\n"
+    "Output exactly one line per criterion in this format:\n"
+    "- <Criterion>: PASS | FAIL — <short note>\n\n"
+    "Criteria:\n"
+    "- Clarity: PASS | FAIL — <short note>\n"
+    "- Measurability: PASS | FAIL — <short note>\n"
+    "- Testability: PASS | FAIL — <short note>\n"
+    "- Atomicity: PASS | FAIL — <short note>\n"
+    "- Ambiguity-free: PASS | FAIL — <short note>\n\n"
+    "Specification:\n"
+    "{spec_statement}"
+)
+
+EXPECTED_PROMPT_TEMPLATES = {
+    "generate_need_to_spec": EXPECTED_GENERATE_NEED_TO_SPEC,
+    "generate_spec_to_child": EXPECTED_GENERATE_SPEC_TO_CHILD,
+    "classify_spec": EXPECTED_CLASSIFY_SPEC,
+    "inspect_spec": EXPECTED_INSPECT_SPEC,
+}
+
 
 def test_seed_reference_data_is_idempotent(db_session: Session) -> None:
     """Seed twice and verify expected reference counts."""
@@ -78,6 +120,25 @@ def test_seed_prompts_is_idempotent(db_session: Session) -> None:
     assert [(prompt.task, prompt.version) for prompt in prompts] == [
         (row["task"], row["version"]) for row in sorted(DEFAULT_PROMPT_ROWS, key=lambda row: row["task"])
     ]
+
+
+def test_seed_prompts_templates_are_byte_identical(db_session: Session) -> None:
+    """Seeded prompt templates match the exact pre-registry prompt strings."""
+    seed_prompts(db_session)
+
+    prompts_by_task = {
+        prompt.task: prompt
+        for prompt in db_session.query(Prompt).order_by(Prompt.task).all()
+    }
+
+    assert {
+        task: prompt.template
+        for task, prompt in prompts_by_task.items()
+    } == EXPECTED_PROMPT_TEMPLATES
+    assert (
+        prompts_by_task["generate_need_to_spec"].template
+        == prompts_by_task["generate_spec_to_child"].template
+    )
 
 
 def test_seed_prompts_preserves_existing_task_versions(db_session: Session) -> None:

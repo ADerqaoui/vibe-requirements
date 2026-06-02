@@ -26,6 +26,8 @@
 | Settings shows a read-only Prompts panel with each prompt's name/version/template visible or expandable; `GenerationPanel.tsx` and `SettingsPanel.tsx` remain under 200 lines. | `frontend/src/components/PromptsPanel.test.tsx` — `renders active prompts with version and template content`; `wc -l` check: both panels 197 lines | Yes |
 | `pytest` + `pnpm test` pass. | `cd backend && .venv/bin/pytest` -> 169 passed; `cd frontend && PATH="$HOME/.nvm/versions/node/v24.16.0/bin:$PATH" pnpm test` -> 29 passed | Yes |
 
+[Codex — 2026-06-02] Resolves Open Question: verified via git that pre-slice-16 main had a SINGLE shared generation prompt (make_spec_prompt) used for both Need->Spec and Spec->child, always labelled 'Need:'. The two registry tasks therefore intentionally share a byte-identical template; this preserves prior behavior. F2: added exact-template assertions for all four seeded prompts + an equality assertion locking the two generation templates. F1: the 'Need:' wording for spec->child is a pre-existing quirk; correcting it is a behavior change deferred to a prompt-quality/editing slice (added to roadmap). F3: str.format non-KeyError mapping deferred until prompt editing lands.
+
 ## ChatGPT — QA review
 - [ChatGPT — YYYY-MM-DD] ...
 
