@@ -14,6 +14,7 @@ from app.models.need import Need
 from app.models.project import Project
 from app.models.spec import Spec
 from app.models.spec_inspection import SpecInspection
+from app.seed.run import seed_prompts
 from app.services.gateway_service import GatewayRuntime
 from app.services.inspector_service import (
     InspectorModelUnavailableError,
@@ -47,6 +48,7 @@ class FakeGateway:
 
 def seed_spec_and_model(db_session: Session, enabled: int = 1) -> tuple[int, Model]:
     """Seed one Spec and one model."""
+    seed_prompts(db_session)
     project = Project(name="Demo")
     layer = Layer(name="System Requirement", kind="cross_cutting", sort_order=10)
     db_session.add_all([project, layer])

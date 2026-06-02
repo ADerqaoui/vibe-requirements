@@ -2,6 +2,7 @@
 import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.gateway import get_gateway_factory
@@ -13,6 +14,8 @@ from app.models.need import Need
 from app.models.project import Project
 from app.models.prompt import Prompt
 from app.models.spec import Spec
+from app.models.call_log import CallLog
+from app.seed.run import seed_prompts
 
 
 class FakeGateway:
@@ -49,6 +52,7 @@ def seed_spec_and_model(db_session: Session, enabled: int = 1) -> tuple[int, int
     """Seed a Spec parent and generation model."""
     Model.__table__
     Prompt.__table__
+    seed_prompts(db_session)
     project = Project(name="Demo")
     layer = Layer(name="System Requirement", kind="cross_cutting", sort_order=10)
     db_session.add_all([project, layer])
@@ -89,6 +93,10 @@ async def test_spec_generation_api_returns_candidates(api_app: FastAPI, db_sessi
         {"index": 1, "statement": "Child"},
         {"index": 2, "statement": "Trace"},
     ]
+    log = db_session.scalars(select(CallLog)).one()
+    prompt = db_session.query(Prompt).filter_by(task="generate_spec_to_child", version=1).one()
+    assert log.prompt_id == prompt.id
+    assert log.prompt_version == prompt.version
 
 
 @pytest.mark.asyncio

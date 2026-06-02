@@ -12,6 +12,7 @@ from app.models.need import Need
 from app.models.project import Project
 from app.models.prompt import Prompt
 from app.models.spec import Spec
+from app.seed.run import seed_prompts
 from app.services.classification_service import (
     CLASSIFICATION_TAGS,
     ClassificationModelError,
@@ -45,6 +46,7 @@ def seed_spec_and_models(db_session: Session, enabled: bool = True) -> tuple[Spe
     """Seed one Spec and the required classification model rows."""
     Model.__table__
     Prompt.__table__
+    seed_prompts(db_session)
     project = Project(name="Demo")
     layer = Layer(name="System Requirement", kind="cross_cutting", sort_order=10)
     db_session.add_all([project, layer])
@@ -98,6 +100,9 @@ async def test_classification_service_persists_median_and_logs(db_session: Sessi
     assert call_order == [model.id for model in models]
     assert len(logs) == 3
     assert {log.status for log in logs} == {"success"}
+    prompt = db_session.query(Prompt).filter_by(task="classify_spec", version=1).one()
+    assert {log.prompt_id for log in logs} == {prompt.id}
+    assert {log.prompt_version for log in logs} == {prompt.version}
 
 
 @pytest.mark.asyncio

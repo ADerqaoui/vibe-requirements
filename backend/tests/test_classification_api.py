@@ -2,6 +2,7 @@
 import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.gateway import get_gateway_factory
@@ -14,6 +15,8 @@ from app.models.need import Need
 from app.models.project import Project
 from app.models.prompt import Prompt
 from app.models.spec import Spec
+from app.models.call_log import CallLog
+from app.seed.run import seed_prompts
 from app.services.classification_service import CLASSIFICATION_TAGS
 
 
@@ -51,6 +54,7 @@ def seed_spec_and_models(db_session: Session, enabled: bool = True) -> tuple[int
     """Seed one Spec and required classification models."""
     Model.__table__
     Prompt.__table__
+    seed_prompts(db_session)
     project = Project(name="Demo")
     layer = Layer(name="System Requirement", kind="cross_cutting", sort_order=10)
     db_session.add_all([project, layer])
@@ -107,6 +111,10 @@ async def test_classification_api_returns_votes_and_complexity(
         {"model_id": model_ids[1], "vote": 5},
         {"model_id": model_ids[2], "vote": 4},
     ]
+    logs = db_session.scalars(select(CallLog).order_by(CallLog.id)).all()
+    prompt = db_session.query(Prompt).filter_by(task="classify_spec", version=1).one()
+    assert {log.prompt_id for log in logs} == {prompt.id}
+    assert {log.prompt_version for log in logs} == {prompt.version}
 
 
 @pytest.mark.asyncio

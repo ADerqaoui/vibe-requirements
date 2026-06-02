@@ -8,13 +8,13 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.classification.parser import VoteParseError, parse_complexity_vote
-from app.classification.prompts import make_complexity_prompt
 from app.config import Settings
 from app.gateway.base import Gateway
 from app.models.model import Model
 from app.models.spec import Spec
 from app.schemas.classification import ClassificationResult, ClassificationVote
 from app.services.gateway_service import GatewayRuntime, complete_model
+from app.services.prompt_service import RenderedPrompt, render
 
 CLASSIFICATION_TAGS = ("qwen2.5:7b", "llama3.1:8b", "gemma2:9b")
 
@@ -47,7 +47,7 @@ async def classify_spec_complexity(
 ) -> ClassificationResult:
     """Classify Spec complexity through three required local model votes."""
     models = _required_models(db)
-    prompt = make_complexity_prompt(spec.text)
+    prompt = render(db, "classify_spec", spec_statement=spec.text)
     try:
         votes = await asyncio.gather(
             *[
@@ -90,7 +90,7 @@ async def _classify_with_model(
     gateway_factory: GatewayFactory,
     settings: Settings,
     runtime: ClassificationRuntime,
-    prompt: str,
+    prompt: RenderedPrompt,
 ) -> ClassificationVote:
     """Call one model through the gateway service and parse its vote."""
     gateway = gateway_factory(model, settings)
@@ -98,12 +98,14 @@ async def _classify_with_model(
         db=db,
         model=model,
         gateway=gateway,
-        prompt=prompt,
+        prompt=prompt.text,
         system=None,
         runtime=GatewayRuntime(
             retry_count=runtime.retry_count,
             timeout_seconds=runtime.timeout_seconds,
         ),
+        prompt_id=prompt.prompt_id,
+        prompt_version=prompt.prompt_version,
     )
     return ClassificationVote(model_id=model.id, vote=parse_complexity_vote(completion.text))
 

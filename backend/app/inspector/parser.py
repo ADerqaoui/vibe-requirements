@@ -2,8 +2,7 @@
 from typing import TypedDict
 import re
 
-from app.inspector.prompts import CRITERIA
-
+CRITERIA = ("Clarity", "Measurability", "Testability", "Atomicity", "Ambiguity-free")
 KNOWN_CRITERIA = {criterion.casefold(): criterion for criterion in CRITERIA}
 VERDICTS = {"PASS", "FAIL"}
 DEFAULT_VERDICT = "UNCLEAR"

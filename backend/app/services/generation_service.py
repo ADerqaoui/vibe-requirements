@@ -5,7 +5,6 @@ from typing import Literal
 from sqlalchemy.orm import Session
 
 from app.generation.parser import ParseError, parse_spec_candidates
-from app.generation.prompts import make_spec_prompt
 from app.gateway.base import Gateway, GatewayError
 from app.models.model import Model
 from app.models.need import Need
@@ -13,6 +12,7 @@ from app.models.spec import Spec
 from app.schemas.generation import GenerationCandidate, GenerationResult
 from app.services.blacklist_service import BlacklistService
 from app.services.gateway_service import GatewayRuntime, complete_model
+from app.services.prompt_service import render
 
 ParentKind = Literal["need", "spec"]
 
@@ -41,18 +41,21 @@ async def generate_for_parent(
 ) -> GenerationResult:
     """Generate stateless child spec candidates from a Need or Spec parent."""
     parent_statement = _parent_statement(db, parent_kind, parent_id)
-    prompt = make_spec_prompt(parent_statement, count)
+    task = "generate_need_to_spec" if parent_kind == "need" else "generate_spec_to_child"
+    prompt = render(db, task, parent_statement=parent_statement, count=count)
     try:
         completion = await complete_model(
             db=db,
             model=model,
             gateway=gateway,
-            prompt=prompt,
+            prompt=prompt.text,
             system=None,
             runtime=GatewayRuntime(
                 retry_count=runtime.retry_count,
                 timeout_seconds=runtime.timeout_seconds,
             ),
+            prompt_id=prompt.prompt_id,
+            prompt_version=prompt.prompt_version,
         )
         statements = parse_spec_candidates(completion.text, count)
         if blacklist_service is not None:

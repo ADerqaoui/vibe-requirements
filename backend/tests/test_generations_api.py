@@ -12,7 +12,9 @@ from app.models.call_log import CallLog
 from app.models.model import Model
 from app.models.need import Need
 from app.models.project import Project
+from app.models.prompt import Prompt
 from app.models.setting import Setting
+from app.seed.run import seed_prompts
 
 
 class FakeGateway:
@@ -49,6 +51,7 @@ def use_db_session(api_app: FastAPI, db_session: Session) -> None:
 
 def seed_need_and_model(db_session: Session, enabled: int = 1) -> tuple[int, int]:
     """Seed a Need and model for generation API tests."""
+    seed_prompts(db_session)
     project = Project(name="Demo")
     db_session.add(project)
     db_session.flush()
@@ -90,6 +93,9 @@ async def test_generation_api_returns_candidates_and_logs(
         {"index": 2, "statement": "Alert"},
     ]
     assert log.status == "success"
+    prompt = db_session.query(Prompt).filter_by(task="generate_need_to_spec", version=1).one()
+    assert log.prompt_id == prompt.id
+    assert log.prompt_version == prompt.version
 
 
 @pytest.mark.asyncio
@@ -167,6 +173,7 @@ async def test_generation_api_cost_ceiling_returns_402(
 ) -> None:
     """Generation returns the structured 402 body when a paid model is blocked."""
     project = Project(name="Demo")
+    seed_prompts(db_session)
     db_session.add(project)
     db_session.flush()
     need = Need(project_id=project.id, statement="Stop safely")

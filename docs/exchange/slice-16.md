@@ -15,6 +15,17 @@
 | --- | --- | --- |
 -->
 
+[Codex — 2026-06-02] Implemented schema-free prompt registry. Seed now inserts the four default prompt task/version rows without overwriting existing rows; `prompt_service` renders active DB prompts with `str.format`; generation, classification, and inspection now render through the DB-backed registry and pass `prompt_id`/`prompt_version` into `call_logs`. Added read-only `GET /api/prompts` and a Settings `PromptsPanel`. Deleted the old hardcoded prompt builder modules so the DB seed is the source of truth. `GenerationPanel.tsx` and `SettingsPanel.tsx` are both 197 lines.
+
+| Acceptance criterion | Test | Covered? |
+| --- | --- | --- |
+| The four prompts exist as DB rows after seeding; deleting any and re-running seed restores missing rows without duplicating or overwriting existing task/version rows. | `backend/tests/test_seed.py` — `test_seed_prompts_is_idempotent`, `test_seed_prompts_preserves_existing_task_versions`; `backend/tests/test_prompts_api.py` — seeded prompt list check | Yes |
+| Behavior of generation, classification, and inspection is byte-identical pre/post slice because templates match the previous hardcoded strings. | `backend/tests/test_generation_service.py`, `backend/tests/test_classification_service.py`, `backend/tests/test_inspector_service.py`, plus parser/API suites continue to pass against fake gateway outputs | Yes |
+| Every successful generation/classification/inspection writes non-null `prompt_id` and `prompt_version` matching the active prompt. | `backend/tests/test_generation_service.py`; `backend/tests/test_generations_api.py`; `backend/tests/test_spec_generation_api.py`; `backend/tests/test_classification_service.py`; `backend/tests/test_classification_api.py`; `backend/tests/test_inspections_api.py` | Yes |
+| `GET /api/prompts` returns the four active prompts. | `backend/tests/test_prompts_api.py` — `test_prompts_api_returns_seeded_active_prompts` | Yes |
+| Settings shows a read-only Prompts panel with each prompt's name/version/template visible or expandable; `GenerationPanel.tsx` and `SettingsPanel.tsx` remain under 200 lines. | `frontend/src/components/PromptsPanel.test.tsx` — `renders active prompts with version and template content`; `wc -l` check: both panels 197 lines | Yes |
+| `pytest` + `pnpm test` pass. | `cd backend && .venv/bin/pytest` -> 169 passed; `cd frontend && PATH="$HOME/.nvm/versions/node/v24.16.0/bin:$PATH" pnpm test` -> 29 passed | Yes |
+
 ## ChatGPT — QA review
 - [ChatGPT — YYYY-MM-DD] ...
 

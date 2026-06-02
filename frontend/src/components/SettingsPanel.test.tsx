@@ -90,6 +90,10 @@ describe('SettingsPanel', () => {
           })
         }
 
+        if (path === '/api/prompts' && method === 'GET') {
+          return jsonResponse([])
+        }
+
         if (path === '/api/models' && method === 'POST') {
           const payload = JSON.parse(String(init?.body)) as ModelPayload
           const model: Model = {

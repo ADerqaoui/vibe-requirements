@@ -16,6 +16,7 @@ from app.api.inspections import router as inspections_router
 from app.api.models import router as models_router
 from app.api.needs import router as needs_router
 from app.api.projects import router as projects_router
+from app.api.prompts import router as prompts_router
 from app.api.settings import router as settings_router
 from app.api.specs import router as specs_router
 from app.config import get_settings
@@ -47,6 +48,7 @@ def create_app() -> FastAPI:
     app.include_router(gateway_router, prefix="/api")
     app.include_router(settings_router, prefix="/api")
     app.include_router(cost_router, prefix="/api")
+    app.include_router(prompts_router, prefix="/api")
     return app
 
 
