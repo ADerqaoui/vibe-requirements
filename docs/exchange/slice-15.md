@@ -42,3 +42,6 @@
 
 ## User — decisions
 - [User — YYYY-MM-DD] decision — rationale
+
+## Claude — final conformance
+- [Claude — 2026-06-02] APPROVE — slice scope met; cost ceiling now mechanically blocks runaway cloud spend. Pre-call gate ordering is correct (check before HTTP, before call_logs write — failed gate produces no row, no charge, no retry). Free-model exemption is the right call (user is never locked out of the app once ceiling hit, only out of paid models). status='success' filter on the spend SUM is the right call (failed calls don't bill). Embedding service also gated, which matters now that nomic-embed-text is local-only but future cloud embeddings would otherwise bypass. Tightening on F1 produced a cleaner separation than the original (CostCeilingBanner + useCostCeilingError reuseable beyond GenerationPanel); SettingsPanel split into Fields / ModelList / ProviderKeys is the kind of factoring slice 4 should have shipped with. F2 fix is the right one (SQLite datetime() on both sides is format-agnostic and immune to whichever default the DB driver writes) — and was a real bug, not a theoretical one. DC1 (soft pre-check overshoot) acceptable for single-user; will need rethink only when concurrent background workflows enter the picture. DC2 (CostPanel hidden in Settings) noted — defer to a UX polish slice when cloud use is routine. Clear to merge.
