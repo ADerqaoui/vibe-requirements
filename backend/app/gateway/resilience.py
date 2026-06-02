@@ -18,6 +18,8 @@ async def complete_with_retries(
             return await gateway.complete(prompt, system, timeout_seconds)
         except GatewayError as error:
             last_error = error
+            if not error.retryable:
+                raise
     if last_error is None:
         raise GatewayError("gateway call failed")
     raise GatewayError(str(last_error)) from last_error

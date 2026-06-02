@@ -78,3 +78,25 @@ async def test_timeout_path_is_clean_gateway_error() -> None:
 
     with pytest.raises(GatewayError, match="timeout"):
         await complete_with_retries(gateway, "prompt", None, retry_count=1, timeout_seconds=1)
+
+
+@pytest.mark.asyncio
+async def test_non_retryable_gateway_error_stops_immediately() -> None:
+    """Authentication-style failures are not retried."""
+    gateway = FlakyGateway(health_failures=0, completion_failures=0)
+
+    async def complete_once(
+        prompt: str,
+        system: str | None,
+        timeout_seconds: float,
+    ) -> GatewayResult:
+        gateway.calls += 1
+        raise GatewayError("authentication failed", retryable=False)
+
+    gateway.complete = complete_once  # type: ignore[method-assign]
+
+    with pytest.raises(GatewayError, match="authentication failed"):
+        await complete_with_retries(gateway, "prompt", None, retry_count=2, timeout_seconds=1)
+
+    assert gateway.health_checks == 1
+    assert gateway.calls == 1

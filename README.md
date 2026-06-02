@@ -36,6 +36,30 @@ Dev-only, not CI. With the backend running and an enabled Ollama model id:
       -H "Content-Type: application/json" \
       -d '{"prompt":"Reply with exactly: ok"}'
 
+## Dev smoke: manual cloud completion
+
+Dev-only, not CI. Add the relevant provider key to `.env`, start the backend,
+enable the cloud model in Settings, then call the existing completion endpoint.
+Cloud models remain disabled until explicitly enabled.
+
+Anthropic:
+
+    curl -X POST http://localhost:8000/api/models/<anthropic_model_id>/complete \
+      -H "Content-Type: application/json" \
+      -d '{"prompt":"Reply with exactly: ok"}'
+
+OpenAI:
+
+    curl -X POST http://localhost:8000/api/models/<openai_model_id>/complete \
+      -H "Content-Type: application/json" \
+      -d '{"prompt":"Reply with exactly: ok"}'
+
+Deepseek:
+
+    curl -X POST http://localhost:8000/api/models/<deepseek_model_id>/complete \
+      -H "Content-Type: application/json" \
+      -d '{"prompt":"Reply with exactly: ok"}'
+
 ## Deployment (later slice)
 `docker-compose.yml` builds backend + frontend and serves on 8080.
 Ollama stays on the host (not containerized).

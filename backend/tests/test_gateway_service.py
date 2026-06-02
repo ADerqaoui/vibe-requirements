@@ -63,6 +63,7 @@ async def test_service_logs_success_with_frozen_cost_and_fx(db_session: Session)
     assert result.cost_sek == 20
     assert log.cost_sek == 20
     assert log.fx_rate == 10
+    assert log.provider == "openai"
     assert log.status == "success"
     assert log.rendered_prompt == "System:\nsystem\n\nUser:\nhello"
 
