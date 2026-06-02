@@ -7,6 +7,7 @@ import { NeedCreateForm, type NeedDraft } from './NeedCreateForm'
 import { NeedRow } from './NeedRow'
 
 type NeedListProps = {
+  onSuccessfulGeneration?: () => void
   projectId: number | null
 }
 
@@ -39,7 +40,7 @@ function payloadFromDraft(draft: NeedDraft): NeedPayload {
   }
 }
 
-export function NeedList({ projectId }: NeedListProps) {
+export function NeedList({ onSuccessfulGeneration, projectId }: NeedListProps) {
   const [needs, setNeeds] = useState<Need[]>([])
   const [selectedNeedId, setSelectedNeedId] = useState<number | null>(null)
   const [selectedParent, setSelectedParent] = useState<GenerationParent | null>(null)
@@ -182,6 +183,7 @@ export function NeedList({ projectId }: NeedListProps) {
         ))}
       </ul>
       <GenerationPanel
+        onSuccessfulGeneration={onSuccessfulGeneration}
         onSelectSpec={selectSpec}
         parent={selectedParent}
         rootNeedId={selectedNeedId}

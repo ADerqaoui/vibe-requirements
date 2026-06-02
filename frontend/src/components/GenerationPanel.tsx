@@ -4,6 +4,7 @@ import {
   createSpecBlacklistEntry,
 } from '../api/blacklist'
 import classifySpec from '../api/classification'
+import { CostCeilingError, costCeilingMessage } from '../api/errors'
 import { generateChildSpecs, generateSpecs } from '../api/generation'
 import { createChildSpec, createNeedSpec } from '../api/specs'
 import { useClassifyingSpecs } from '../hooks/useClassifyingSpecs'
@@ -27,6 +28,7 @@ type GenerationPanelProps = {
   needId?: number | null
   parent?: GenerationParent | null
   onSelectSpec?: (spec: SpecTreeNode) => void
+  onSuccessfulGeneration?: () => void
 }
 
 function errorMessage(error: unknown): string {
@@ -47,11 +49,18 @@ function parentKey(parent: GenerationParent | null): string {
   return parent === null ? 'none' : `${parent.kind}:${parent.id}`
 }
 
-export function GenerationPanel({ rootNeedId, needId, parent, onSelectSpec }: GenerationPanelProps) {
+export function GenerationPanel({
+  rootNeedId,
+  needId,
+  parent,
+  onSelectSpec,
+  onSuccessfulGeneration,
+}: GenerationPanelProps) {
   const effectiveRootNeedId = rootNeedId ?? needId ?? null
   const generationParent = parent ?? parentFromNeedId(effectiveRootNeedId)
   const selectedParentKey = parentKey(generationParent)
   const [error, setError] = useState<string | null>(null)
+  const [ceilingBanner, setCeilingBanner] = useState<string | null>(null)
   const handleError = useCallback((unknownError: unknown) => {
     setError(errorMessage(unknownError))
   }, [])
@@ -68,6 +77,7 @@ export function GenerationPanel({ rootNeedId, needId, parent, onSelectSpec }: Ge
     clearSpecTree()
     setCandidates([])
     setAllCandidatesBlocked(false)
+    setCeilingBanner(null)
     if (effectiveRootNeedId !== null) {
       loadSpecTree(effectiveRootNeedId)
         .then(() => setError(null))
@@ -92,9 +102,16 @@ export function GenerationPanel({ rootNeedId, needId, parent, onSelectSpec }: Ge
           : await generateChildSpecs(generationParent.id, { model_id: modelId, count })
       setCandidates(result.candidates)
       setAllCandidatesBlocked(result.candidates.length === 0)
+      setCeilingBanner(null)
       setError(null)
+      onSuccessfulGeneration?.()
     } catch (generateError: unknown) {
-      setError(errorMessage(generateError))
+      if (generateError instanceof CostCeilingError) {
+        setCeilingBanner(costCeilingMessage(generateError))
+        setError(null)
+      } else {
+        setError(errorMessage(generateError))
+      }
     } finally {
       setIsGenerating(false)
     }
@@ -125,7 +142,12 @@ export function GenerationPanel({ rootNeedId, needId, parent, onSelectSpec }: Ge
         const classification = await classifySpec(createdSpec.id)
         setSpecComplexity(createdSpec.id, classification.complexity)
       } catch (classifyError: unknown) {
-        console.warn('Auto-classify failed after accepting spec', classifyError)
+        if (classifyError instanceof CostCeilingError) {
+          setCeilingBanner(costCeilingMessage(classifyError))
+          setError(null)
+        } else {
+          console.warn('Auto-classify failed after accepting spec', classifyError)
+        }
       } finally {
         removeClassifyingSpecId(createdSpec.id)
       }
@@ -160,6 +182,11 @@ export function GenerationPanel({ rootNeedId, needId, parent, onSelectSpec }: Ge
   return (
     <section className="mt-6 border-t border-neutral-200 pt-5">
       <GenerationPanelHeader blacklistCount={blacklistCount} />
+      {ceilingBanner && (
+        <p className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          {ceilingBanner}
+        </p>
+      )}
       {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
       <GenerationForm
         count={count}

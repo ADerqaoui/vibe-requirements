@@ -4,9 +4,10 @@ from collections.abc import Callable
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.api.errors import cost_ceiling_response
 from app.config import Settings, get_settings
 from app.db import get_db
-from app.gateway.base import Gateway, GatewayError
+from app.gateway.base import CostCeilingExceededError, Gateway, GatewayError
 from app.gateway.factory import build_gateway
 from app.models.model import Model
 from app.schemas.completion import CompletionRequest, CompletionResult
@@ -50,6 +51,8 @@ async def complete_model_route(
                 timeout_seconds=_timeout_for_provider(model.provider, settings),
             ),
         )
+    except CostCeilingExceededError as error:
+        return cost_ceiling_response(error)
     except GatewayError as error:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,

@@ -190,3 +190,79 @@ async def test_complete_api_cloud_model_uses_cloud_timeout_and_logs(
     assert fake_gateway.timeouts == [60.0, 60.0]
     assert log.provider == "openai"
     assert log.cost_sek > 0
+
+
+@pytest.mark.asyncio
+async def test_complete_api_cost_ceiling_returns_402_before_gateway(
+    api_app: FastAPI,
+    db_session: Session,
+) -> None:
+    """Paid manual completions return structured 402 at the ceiling."""
+    model = Model(
+        provider="openai",
+        name="gpt",
+        api_model_id="gpt-test",
+        tier="high",
+        input_cost_per_1k=1,
+        output_cost_per_1k=1,
+        enabled=1,
+    )
+    db_session.add_all([
+        model,
+        Setting(key="cost_ceiling_sek", value="3"),
+        CallLog(task="manual", provider="openai", cost_sek=3, status="success"),
+    ])
+    db_session.flush()
+    model_id = model.id
+    db_session.commit()
+    use_db_session(api_app, db_session)
+    fake_gateway = FakeGateway(GatewayResult("blocked", 1, 1))
+
+    async def override_gateway_factory():
+        return lambda _model, _settings: fake_gateway
+
+    api_app.dependency_overrides[get_gateway_factory] = override_gateway_factory
+
+    transport = ASGITransport(app=api_app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post(f"/api/models/{model_id}/complete", json={"prompt": "hello"})
+
+    assert response.status_code == 402
+    assert response.json() == {
+        "error": "cost_ceiling_exceeded",
+        "spent_sek": 3,
+        "ceiling_sek": 3,
+        "currency": "SEK",
+    }
+    assert fake_gateway.timeouts == []
+    assert len(db_session.scalars(select(CallLog)).all()) == 1
+
+
+@pytest.mark.asyncio
+async def test_complete_api_free_model_ignores_cost_ceiling(
+    api_app: FastAPI,
+    db_session: Session,
+) -> None:
+    """Free manual completions still return 200 when spend exceeds ceiling."""
+    model = Model(provider="ollama", name="qwen", ollama_tag="qwen", tier="mid", enabled=1)
+    db_session.add_all([
+        model,
+        Setting(key="cost_ceiling_sek", value="0"),
+        CallLog(task="manual", provider="openai", cost_sek=99, status="success"),
+    ])
+    db_session.flush()
+    model_id = model.id
+    db_session.commit()
+    use_db_session(api_app, db_session)
+
+    async def override_gateway_factory():
+        return lambda _model, _settings: FakeGateway(GatewayResult("free ok", 1, 1))
+
+    api_app.dependency_overrides[get_gateway_factory] = override_gateway_factory
+
+    transport = ASGITransport(app=api_app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post(f"/api/models/{model_id}/complete", json={"prompt": "hello"})
+
+    assert response.status_code == 200
+    assert response.json()["text"] == "free ok"

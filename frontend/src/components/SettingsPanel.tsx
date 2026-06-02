@@ -3,6 +3,7 @@ import { createModel, deleteModel, fetchModels, updateModel } from '../api/model
 import { fetchSettings, updateSettings } from '../api/settings'
 import type { Model, ModelPayload } from '../types/model'
 import type { Setting, SettingsResponse } from '../types/setting'
+import { CostPanel } from './CostPanel'
 import { ModelTester } from './ModelTester'
 
 const SETTING_KEYS = ['fx_rate_usd_sek', 'complexity_tier_map', 'router_default', 'cost_ceiling_sek']
@@ -44,7 +45,11 @@ function buildModelPayload(draft: ModelDraft): ModelPayload {
   }
 }
 
-export function SettingsPanel() {
+type SettingsPanelProps = {
+  costRefreshSignal?: number
+}
+
+export function SettingsPanel({ costRefreshSignal = 0 }: SettingsPanelProps) {
   const [models, setModels] = useState<Model[]>([])
   const [settingsResponse, setSettingsResponse] = useState<SettingsResponse>({
     settings: [],
@@ -190,7 +195,9 @@ export function SettingsPanel() {
         </div>
 
         <div>
-          <h3 className="text-sm font-semibold text-neutral-900">Settings</h3>
+          <CostPanel refreshSignal={costRefreshSignal} />
+
+          <h3 className="mt-5 text-sm font-semibold text-neutral-900">Settings</h3>
           <div className="mt-3 grid gap-2">
             {SETTING_KEYS.map((key) => (
               <label className="grid gap-1 text-xs font-medium text-neutral-600" key={key}>

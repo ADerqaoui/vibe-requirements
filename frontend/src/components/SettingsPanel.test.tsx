@@ -78,6 +78,18 @@ describe('SettingsPanel', () => {
           return jsonResponse(settings)
         }
 
+        if (path === '/api/cost-summary' && method === 'GET') {
+          return jsonResponse({
+            currency: 'SEK',
+            ceiling_sek: 50,
+            month_spent_sek: 12.34,
+            month_remaining_sek: 37.66,
+            all_time_spent_sek: 18.21,
+            by_provider: [{ provider: 'openai', month_sek: 8 }],
+            by_model: [{ model_id: 7, model_name: 'gpt', month_sek: 8 }],
+          })
+        }
+
         if (path === '/api/models' && method === 'POST') {
           const payload = JSON.parse(String(init?.body)) as ModelPayload
           const model: Model = {
@@ -132,6 +144,7 @@ describe('SettingsPanel', () => {
     render(<SettingsPanel />)
 
     expect(await screen.findByText('qwen2.5:7b')).toBeInTheDocument()
+    expect(await screen.findByText('12.34 / 50.00 SEK this month')).toBeInTheDocument()
     expect(screen.getByDisplayValue('11.0')).toBeInTheDocument()
     expect(screen.getByText('anthropic: configured')).toBeInTheDocument()
   })

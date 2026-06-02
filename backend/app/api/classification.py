@@ -2,10 +2,11 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.api.errors import cost_ceiling_response
 from app.api.gateway import GatewayFactory, get_gateway_factory
 from app.config import get_settings
 from app.db import get_db
-from app.gateway.base import GatewayError
+from app.gateway.base import CostCeilingExceededError, GatewayError
 from app.models.spec import Spec
 from app.schemas.classification import ClassificationResult
 from app.services.classification_service import (
@@ -44,6 +45,8 @@ async def classify_spec_route(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(error)) from error
     except ClassificationParseError as error:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(error)) from error
+    except CostCeilingExceededError as error:
+        return cost_ceiling_response(error)
     except GatewayError as error:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
