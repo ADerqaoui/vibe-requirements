@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.blacklist import router as blacklist_router
 from app.api.classification import router as classification_router
+from app.api.cost import router as cost_router
 from app.api.decisions import router as decisions_router
 from app.api.export import router as export_router
 from app.api.gateway import router as gateway_router
@@ -45,6 +46,7 @@ def create_app() -> FastAPI:
     app.include_router(models_router, prefix="/api")
     app.include_router(gateway_router, prefix="/api")
     app.include_router(settings_router, prefix="/api")
+    app.include_router(cost_router, prefix="/api")
     return app
 
 

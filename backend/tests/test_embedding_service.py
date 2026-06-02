@@ -4,7 +4,10 @@ import pytest
 from sqlalchemy.orm import Session
 
 from app.config import Settings
+from app.gateway.base import CostCeilingExceededError
+from app.models.call_log import CallLog
 from app.models.model import Model
+from app.models.setting import Setting
 from app.services.embedding_service import (
     EMBEDDING_DIMENSIONS,
     EMBEDDING_MODEL_TAG,
@@ -39,6 +42,23 @@ def seed_embedding_model(db_session: Session, enabled: int = 1) -> None:
             enabled=enabled,
         )
     )
+    db_session.commit()
+
+
+def seed_paid_embedding_model_over_ceiling(db_session: Session) -> None:
+    """Seed a paid embedding model while monthly spend is at the ceiling."""
+    db_session.add_all([
+        Model(
+            provider="ollama",
+            name="Nomic Embed",
+            ollama_tag=EMBEDDING_MODEL_TAG,
+            tier="low",
+            input_cost_per_1k=1,
+            enabled=1,
+        ),
+        Setting(key="cost_ceiling_sek", value="1"),
+        CallLog(task="manual", provider="openai", cost_sek=100, status="success"),
+    ])
     db_session.commit()
 
 
@@ -115,3 +135,28 @@ async def test_embedding_service_retries_timeout_like_failures(
     assert result == vector(0.3)
     assert attempts == 2
     assert timeouts == [7, 7, 7, 7]
+
+
+@pytest.mark.asyncio
+async def test_embedding_service_blocks_paid_embedding_before_http(
+    db_session: Session,
+) -> None:
+    """Paid embedding models are blocked before an HTTP attempt at the ceiling."""
+    seed_paid_embedding_model_over_ceiling(db_session)
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(200, json={"embedding": vector(0.2)})
+
+    client = httpx.AsyncClient(
+        base_url="http://ollama.test",
+        transport=httpx.MockTransport(handler),
+    )
+    service = EmbeddingService(db_session, settings(), client)
+
+    with pytest.raises(CostCeilingExceededError):
+        await service.embed("Brake safely")
+
+    await client.aclose()
+    assert requests == []

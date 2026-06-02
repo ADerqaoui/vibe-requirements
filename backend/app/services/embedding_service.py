@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.config import Settings
 from app.models.model import Model
+from app.services.cost_service import enforce_cost_ceiling
 
 EMBEDDING_MODEL_TAG = "nomic-embed-text"
 EMBEDDING_DIMENSIONS = 768
@@ -34,6 +35,7 @@ class EmbeddingService:
     async def embed(self, text: str) -> list[float]:
         """Return the configured Ollama embedding for text."""
         model = self._embedding_model()
+        enforce_cost_ceiling(self._db, model)
         return await self._embed_with_retries(
             model_tag=model.ollama_tag or EMBEDDING_MODEL_TAG,
             text=text,

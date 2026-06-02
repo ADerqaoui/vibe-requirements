@@ -1,32 +1,28 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react'
-import {
-  createNeedBlacklistEntry,
-  createSpecBlacklistEntry,
-} from '../api/blacklist'
+import { createNeedBlacklistEntry, createSpecBlacklistEntry } from '../api/blacklist'
 import classifySpec from '../api/classification'
 import { generateChildSpecs, generateSpecs } from '../api/generation'
 import { createChildSpec, createNeedSpec } from '../api/specs'
+import { useCostCeilingError, type CostCeilingBannerState } from '../hooks/useCostCeilingError'
 import { useClassifyingSpecs } from '../hooks/useClassifyingSpecs'
 import { useGenerationModels } from '../hooks/useGenerationModels'
 import { useParentBlacklist } from '../hooks/useParentBlacklist'
 import { useParentSpecTree } from '../hooks/useParentSpecTree'
 import type { GenerationCandidate } from '../types/generation'
+import { parentFromNeedId, parentKey, type GenerationParent } from '../types/generationParent'
 import type { SpecTreeNode } from '../types/spec'
+import { CostCeilingBanner } from './CostCeilingBanner'
 import { GenerationCandidates } from './GenerationCandidates'
 import { GenerationForm } from './GenerationForm'
 import GenerationPanelHeader from './GenerationPanelHeader'
-import { SpecList } from './SpecList'
-
-export type GenerationParent = {
-  kind: 'need' | 'spec'
-  id: number
-}
+import { GenerationSpecSection } from './GenerationSpecSection'
 
 type GenerationPanelProps = {
   rootNeedId?: number | null
   needId?: number | null
   parent?: GenerationParent | null
   onSelectSpec?: (spec: SpecTreeNode) => void
+  onSuccessfulGeneration?: () => void
 }
 
 function errorMessage(error: unknown): string {
@@ -36,22 +32,19 @@ function errorMessage(error: unknown): string {
   return String(error)
 }
 
-function parentFromNeedId(needId: number | null | undefined): GenerationParent | null {
-  if (needId === null || needId === undefined) {
-    return null
-  }
-  return { kind: 'need', id: needId }
-}
-
-function parentKey(parent: GenerationParent | null): string {
-  return parent === null ? 'none' : `${parent.kind}:${parent.id}`
-}
-
-export function GenerationPanel({ rootNeedId, needId, parent, onSelectSpec }: GenerationPanelProps) {
+export function GenerationPanel({
+  rootNeedId,
+  needId,
+  parent,
+  onSelectSpec,
+  onSuccessfulGeneration,
+}: GenerationPanelProps) {
   const effectiveRootNeedId = rootNeedId ?? needId ?? null
   const generationParent = parent ?? parentFromNeedId(effectiveRootNeedId)
   const selectedParentKey = parentKey(generationParent)
   const [error, setError] = useState<string | null>(null)
+  const [ceilingBanner, setCeilingBanner] = useState<CostCeilingBannerState>(null)
+  const handleCostCeilingError = useCostCeilingError({ setCeilingBanner, setError })
   const handleError = useCallback((unknownError: unknown) => {
     setError(errorMessage(unknownError))
   }, [])
@@ -68,6 +61,7 @@ export function GenerationPanel({ rootNeedId, needId, parent, onSelectSpec }: Ge
     clearSpecTree()
     setCandidates([])
     setAllCandidatesBlocked(false)
+    setCeilingBanner(null)
     if (effectiveRootNeedId !== null) {
       loadSpecTree(effectiveRootNeedId)
         .then(() => setError(null))
@@ -92,9 +86,13 @@ export function GenerationPanel({ rootNeedId, needId, parent, onSelectSpec }: Ge
           : await generateChildSpecs(generationParent.id, { model_id: modelId, count })
       setCandidates(result.candidates)
       setAllCandidatesBlocked(result.candidates.length === 0)
+      setCeilingBanner(null)
       setError(null)
+      onSuccessfulGeneration?.()
     } catch (generateError: unknown) {
-      setError(errorMessage(generateError))
+      if (!handleCostCeilingError(generateError)) {
+        setError(errorMessage(generateError))
+      }
     } finally {
       setIsGenerating(false)
     }
@@ -125,7 +123,9 @@ export function GenerationPanel({ rootNeedId, needId, parent, onSelectSpec }: Ge
         const classification = await classifySpec(createdSpec.id)
         setSpecComplexity(createdSpec.id, classification.complexity)
       } catch (classifyError: unknown) {
-        console.warn('Auto-classify failed after accepting spec', classifyError)
+        if (!handleCostCeilingError(classifyError)) {
+          console.warn('Auto-classify failed after accepting spec', classifyError)
+        }
       } finally {
         removeClassifyingSpecId(createdSpec.id)
       }
@@ -160,6 +160,13 @@ export function GenerationPanel({ rootNeedId, needId, parent, onSelectSpec }: Ge
   return (
     <section className="mt-6 border-t border-neutral-200 pt-5">
       <GenerationPanelHeader blacklistCount={blacklistCount} />
+      {ceilingBanner && (
+        <CostCeilingBanner
+          ceilingSek={ceilingBanner.ceilingSek}
+          currency={ceilingBanner.currency}
+          spentSek={ceilingBanner.spentSek}
+        />
+      )}
       {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
       <GenerationForm
         count={count}
@@ -171,26 +178,17 @@ export function GenerationPanel({ rootNeedId, needId, parent, onSelectSpec }: Ge
         onModelIdChange={setModelId}
       />
 
-      <GenerationCandidates
-        candidates={candidates}
-        onAccept={handleAccept}
-        onReject={handleReject}
-      />
+      <GenerationCandidates candidates={candidates} onAccept={handleAccept} onReject={handleReject} />
       {allCandidatesBlocked && (
         <p className="mt-4 text-sm text-neutral-600">
           All candidates were blocked by the blacklist — try again or rephrase.
         </p>
       )}
 
-      <h3 className="mt-5 text-sm font-semibold text-neutral-900">Specs</h3>
-      <SpecList
+      <GenerationSpecSection
         classifyingSpecIds={classifyingSpecIds}
         onSelectSpec={onSelectSpec}
-        onSpecChanged={() => {
-          if (effectiveRootNeedId !== null) {
-            void loadSpecTree(effectiveRootNeedId)
-          }
-        }}
+        onSpecChanged={() => effectiveRootNeedId !== null && void loadSpecTree(effectiveRootNeedId)}
         selectedSpecId={parent?.kind === 'spec' ? parent.id : null}
         specs={specs}
       />

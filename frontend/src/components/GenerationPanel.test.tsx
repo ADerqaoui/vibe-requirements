@@ -45,6 +45,7 @@ describe('GenerationPanel', () => {
   let blacklistPostShouldFail: boolean
   let classifyHandler: (specId: number) => Promise<Response> | Response
   let classifyRequests: number[]
+  let generationShouldHitCeiling: boolean
   let requestLog: string[]
   let specTreeFailuresByNeed: Record<number, number>
 
@@ -64,6 +65,7 @@ describe('GenerationPanel', () => {
     blacklistByParent = {}
     blacklistPostShouldFail = false
     classifyRequests = []
+    generationShouldHitCeiling = false
     requestLog = []
     classifyHandler = (specId: number) =>
       jsonResponse({ spec_id: specId, votes: [{ model_id: 3, vote: 3 }], complexity: 3 })
@@ -129,6 +131,18 @@ describe('GenerationPanel', () => {
         }
 
         if (path.startsWith('/api/needs/') && path.endsWith('/generate') && method === 'POST') {
+          if (generationShouldHitCeiling) {
+            return {
+              ok: false,
+              status: 402,
+              json: async () => ({
+                error: 'cost_ceiling_exceeded',
+                spent_sek: 51,
+                ceiling_sek: 50,
+                currency: 'SEK',
+              }),
+            } as Response
+          }
           const needId = Number(path.replace('/api/needs/', '').replace('/generate', ''))
           return jsonResponse({ candidates: candidatesByNeed[needId] ?? [] })
         }
@@ -200,7 +214,10 @@ describe('GenerationPanel', () => {
   })
 
   it('generates candidates, accepts one, refetches specs, and rejects one', async () => {
-    render(<GenerationPanel needId={1} />)
+    const handleSuccessfulGeneration = vi.fn()
+    render(
+      <GenerationPanel needId={1} onSuccessfulGeneration={handleSuccessfulGeneration} />,
+    )
 
     expect(await screen.findByLabelText('Generation model')).toBeInTheDocument()
     fireEvent.change(screen.getByLabelText('Generation count'), { target: { value: '2' } })
@@ -208,6 +225,7 @@ describe('GenerationPanel', () => {
 
     expect(await screen.findByText('The system shall brake.')).toBeInTheDocument()
     expect(screen.getByText('The system shall alert.')).toBeInTheDocument()
+    expect(handleSuccessfulGeneration).toHaveBeenCalledTimes(1)
 
     fireEvent.click(screen.getAllByRole('button', { name: 'Accept' })[0])
     await waitFor(() => expect(fetch).toHaveBeenCalledWith('/api/needs/1/spec-tree'))
@@ -238,6 +256,22 @@ describe('GenerationPanel', () => {
     expect(
       await screen.findByText('All candidates were blocked by the blacklist — try again or rephrase.'),
     ).toBeInTheDocument()
+  })
+
+  it('shows a cost ceiling banner for generation 402 responses', async () => {
+    generationShouldHitCeiling = true
+
+    render(<GenerationPanel needId={1} />)
+
+    expect(await screen.findByLabelText('Generation model')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Generate' }))
+
+    expect(
+      await screen.findByText(
+        'Cost ceiling reached — 51.00 / 50.00 SEK this month. Raise it in Settings or use a local model.',
+      ),
+    ).toBeInTheDocument()
+    expect(screen.queryByText('Generation request failed: HTTP 402')).not.toBeInTheDocument()
   })
 
   it('clears stale candidates when the selected Need changes', async () => {
@@ -429,6 +463,35 @@ describe('GenerationPanel', () => {
     expect(await screen.findByText('4')).toBeInTheDocument()
     expect(classifyRequests).toEqual([10, 10])
     warnSpy.mockRestore()
+  })
+
+  it('shows a cost ceiling banner when auto-classification is blocked', async () => {
+    classifyHandler = () =>
+      ({
+        ok: false,
+        status: 402,
+        json: async () => ({
+          error: 'cost_ceiling_exceeded',
+          spent_sek: 50,
+          ceiling_sek: 50,
+          currency: 'SEK',
+        }),
+      }) as Response
+
+    render(<GenerationPanel needId={1} />)
+
+    expect(await screen.findByLabelText('Generation model')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Generate' }))
+    expect(await screen.findByText('The system shall brake.')).toBeInTheDocument()
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Accept' })[0])
+
+    expect(
+      await screen.findByText(
+        'Cost ceiling reached — 50.00 / 50.00 SEK this month. Raise it in Settings or use a local model.',
+      ),
+    ).toBeInTheDocument()
+    expect(screen.queryByText('Classification request failed: HTTP 402')).not.toBeInTheDocument()
   })
 
   it('clears auto-classifying state and still classifies when spec tree refresh fails', async () => {

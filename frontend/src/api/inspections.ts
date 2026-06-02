@@ -1,3 +1,4 @@
+import { parseApiError } from './errors'
 import type { SpecInspection } from '../types/inspection'
 
 export async function inspectSpec(specId: number, modelId: number): Promise<SpecInspection> {
@@ -7,7 +8,7 @@ export async function inspectSpec(specId: number, modelId: number): Promise<Spec
     body: JSON.stringify({ model_id: modelId }),
   })
   if (!response.ok) {
-    throw new Error(`Inspection request failed: HTTP ${response.status}`)
+    throw await parseApiError(response, `Inspection request failed: HTTP ${response.status}`)
   }
   return (await response.json()) as SpecInspection
 }

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { classifySpec } from '../api/classification'
 import { decideSpec, type SpecDecision } from '../api/decisions'
+import { CostCeilingError, costCeilingMessage } from '../api/errors'
 import { inspectSpec } from '../api/inspections'
 import { fetchModels } from '../api/models'
 import type { ClassificationVote } from '../types/classification'
@@ -18,6 +19,9 @@ type SpecListProps = {
 }
 
 function errorMessage(error: unknown): string {
+  if (error instanceof CostCeilingError) {
+    return costCeilingMessage(error)
+  }
   return error instanceof Error ? error.message : String(error)
 }
 

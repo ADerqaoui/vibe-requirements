@@ -11,6 +11,7 @@ from app.models.model import Model
 from app.models.setting import Setting
 from app.schemas.completion import CompletionResult
 from app.services.cost import compute_cost_sek
+from app.services.cost_service import enforce_cost_ceiling
 
 MANUAL_TASK = "manual"
 DEFAULT_FX_RATE = 0.0
@@ -49,6 +50,7 @@ async def complete_model(
     started_at = monotonic()
     rendered_prompt = _render_prompt(prompt, system)
     fx_rate = _current_fx_rate(db)
+    enforce_cost_ceiling(db, model)
     try:
         gateway_result = await complete_with_retries(
             gateway=gateway,

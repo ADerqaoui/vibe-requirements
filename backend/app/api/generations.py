@@ -3,11 +3,12 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.api.blacklist import get_blacklist_service
+from app.api.errors import cost_ceiling_response
 from app.api.gateway import GatewayFactory, get_gateway_factory
 from app.config import get_settings
 from app.db import get_db
 from app.generation.parser import ParseError
-from app.gateway.base import GatewayError
+from app.gateway.base import CostCeilingExceededError, GatewayError
 from app.models.need import Need
 from app.models.spec import Spec
 from app.schemas.generation import GenerationRequest, GenerationResult
@@ -100,6 +101,8 @@ async def _generate_specs_for_parent(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=detail) from error
     except ParseError as error:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(error)) from error
+    except CostCeilingExceededError as error:
+        return cost_ceiling_response(error)
     except GatewayError as error:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,

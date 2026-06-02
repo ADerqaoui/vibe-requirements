@@ -3,7 +3,11 @@ import { createModel, deleteModel, fetchModels, updateModel } from '../api/model
 import { fetchSettings, updateSettings } from '../api/settings'
 import type { Model, ModelPayload } from '../types/model'
 import type { Setting, SettingsResponse } from '../types/setting'
+import { CostPanel } from './CostPanel'
 import { ModelTester } from './ModelTester'
+import { SettingsFields } from './SettingsFields'
+import { SettingsModelList } from './SettingsModelList'
+import { SettingsProviderKeys } from './SettingsProviderKeys'
 
 const SETTING_KEYS = ['fx_rate_usd_sek', 'complexity_tier_map', 'router_default', 'cost_ceiling_sek']
 
@@ -44,7 +48,11 @@ function buildModelPayload(draft: ModelDraft): ModelPayload {
   }
 }
 
-export function SettingsPanel() {
+type SettingsPanelProps = {
+  costRefreshSignal?: number
+}
+
+export function SettingsPanel({ costRefreshSignal = 0 }: SettingsPanelProps) {
   const [models, setModels] = useState<Model[]>([])
   const [settingsResponse, setSettingsResponse] = useState<SettingsResponse>({
     settings: [],
@@ -163,61 +171,22 @@ export function SettingsPanel() {
             </button>
           </form>
 
-          <ul className="mt-4 space-y-2">
-            {models.map((model) => (
-              <li className="rounded-md border border-neutral-200 bg-white p-3" key={model.id}>
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-medium text-neutral-950">{model.name}</p>
-                    <p className="text-xs text-neutral-500">
-                      {model.provider} · {model.tier} · {model.cumulative_cost_sek.toFixed(2)} SEK
-                    </p>
-                  </div>
-                  <button
-                    className="text-xs text-neutral-700"
-                    onClick={() => handleToggleModel(model)}
-                    type="button"
-                  >
-                    {model.enabled ? 'Disable' : 'Enable'}
-                  </button>
-                  <button className="text-xs text-red-600" onClick={() => handleDeleteModel(model)} type="button">
-                    Remove
-                  </button>
-                </div>
-              </li>
-            ))}
-          </ul>
+          <SettingsModelList models={models} onDeleteModel={handleDeleteModel} onToggleModel={handleToggleModel} />
         </div>
 
         <div>
-          <h3 className="text-sm font-semibold text-neutral-900">Settings</h3>
-          <div className="mt-3 grid gap-2">
-            {SETTING_KEYS.map((key) => (
-              <label className="grid gap-1 text-xs font-medium text-neutral-600" key={key}>
-                {key}
-                <input
-                  aria-label={key}
-                  className="rounded-md border border-neutral-300 px-3 py-2 text-sm font-normal text-neutral-900"
-                  onChange={(event) =>
-                    setSettingDrafts({ ...settingDrafts, [key]: event.target.value })
-                  }
-                  value={settingDrafts[key] ?? ''}
-                />
-              </label>
-            ))}
-            <button className="w-fit rounded-md bg-neutral-950 px-3 py-2 text-sm text-white" onClick={handleSaveSettings} type="button">
-              Save settings
-            </button>
-          </div>
+          <CostPanel refreshSignal={costRefreshSignal} />
+
+          <h3 className="mt-5 text-sm font-semibold text-neutral-900">Settings</h3>
+          <SettingsFields
+            onSaveSettings={handleSaveSettings}
+            onSettingDraftsChange={setSettingDrafts}
+            settingDrafts={settingDrafts}
+            settingKeys={SETTING_KEYS}
+          />
 
           <h3 className="mt-5 text-sm font-semibold text-neutral-900">Provider keys</h3>
-          <ul className="mt-2 space-y-1 text-sm text-neutral-700">
-            {Object.entries(settingsResponse.provider_keys).map(([provider, status]) => (
-              <li key={provider}>
-                {provider}: {status}
-              </li>
-            ))}
-          </ul>
+          <SettingsProviderKeys providerKeys={settingsResponse.provider_keys} />
         </div>
       </div>
       <ModelTester models={models} />

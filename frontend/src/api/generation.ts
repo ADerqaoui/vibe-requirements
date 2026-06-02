@@ -1,3 +1,4 @@
+import { parseApiError } from './errors'
 import type { GenerationRequest, GenerationResult } from '../types/generation'
 
 export async function generateSpecs(
@@ -10,7 +11,7 @@ export async function generateSpecs(
     body: JSON.stringify(payload),
   })
   if (!response.ok) {
-    throw new Error(`Generation request failed: HTTP ${response.status}`)
+    throw await parseApiError(response, `Generation request failed: HTTP ${response.status}`)
   }
   return (await response.json()) as GenerationResult
 }
@@ -25,7 +26,7 @@ export async function generateChildSpecs(
     body: JSON.stringify(payload),
   })
   if (!response.ok) {
-    throw new Error(`Generation request failed: HTTP ${response.status}`)
+    throw await parseApiError(response, `Generation request failed: HTTP ${response.status}`)
   }
   return (await response.json()) as GenerationResult
 }

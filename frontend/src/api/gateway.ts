@@ -1,3 +1,4 @@
+import { parseApiError } from './errors'
 import type { CompletionRequest, CompletionResult } from '../types/completion'
 
 export async function completeModel(
@@ -10,8 +11,7 @@ export async function completeModel(
     body: JSON.stringify(payload),
   })
   if (!response.ok) {
-    const body = (await response.json().catch(() => ({}))) as { detail?: string }
-    throw new Error(body.detail ?? `Completion request failed: HTTP ${response.status}`)
+    throw await parseApiError(response, `Completion request failed: HTTP ${response.status}`)
   }
   return (await response.json()) as CompletionResult
 }

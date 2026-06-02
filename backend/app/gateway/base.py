@@ -11,6 +11,15 @@ class GatewayError(Exception):
         self.retryable = retryable
 
 
+class CostCeilingExceededError(GatewayError):
+    """Raised before a paid call when monthly spend has reached the ceiling."""
+
+    def __init__(self, spent_sek: float, ceiling_sek: float):
+        super().__init__("cost ceiling exceeded", retryable=False)
+        self.spent_sek = spent_sek
+        self.ceiling_sek = ceiling_sek
+
+
 @dataclass(frozen=True)
 class GatewayResult:
     """Normalized LLM completion result."""

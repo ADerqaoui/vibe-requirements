@@ -8,10 +8,12 @@ from sqlalchemy.orm import Session
 from app.api.gateway import get_gateway_factory
 from app.db import get_db
 from app.gateway.base import GatewayError, GatewayResult
+from app.models.call_log import CallLog
 from app.models.layer import Layer
 from app.models.model import Model
 from app.models.need import Need
 from app.models.project import Project
+from app.models.setting import Setting
 from app.models.spec import Spec
 from app.models.spec_inspection import SpecInspection
 
@@ -21,6 +23,7 @@ class FakeGateway:
 
     def __init__(self, outcome: GatewayResult | GatewayError):
         self.outcome = outcome
+        self.calls = 0
 
     async def health_check(self, timeout_seconds: float) -> None:
         """Always healthy."""
@@ -32,6 +35,7 @@ class FakeGateway:
         timeout_seconds: float,
     ) -> GatewayResult:
         """Return or raise the configured outcome."""
+        self.calls += 1
         if isinstance(self.outcome, GatewayError):
             raise self.outcome
         return self.outcome
@@ -180,3 +184,40 @@ async def test_inspection_api_parser_empty_and_gateway_failure_write_no_rows(
 
     assert failure_response.status_code == 502
     assert db_session.scalars(select(SpecInspection)).all() == []
+
+
+@pytest.mark.asyncio
+async def test_inspection_api_cost_ceiling_returns_402(
+    api_app: FastAPI,
+    db_session: Session,
+) -> None:
+    """Inspection returns the structured 402 body when a paid model is blocked."""
+    spec_id, model_id = seed_spec_and_model(db_session)
+    model = db_session.get(Model, model_id)
+    assert model is not None
+    model.provider = "openai"
+    model.api_model_id = "gpt-test"
+    model.ollama_tag = None
+    model.input_cost_per_1k = 1
+    db_session.add_all([
+        Setting(key="cost_ceiling_sek", value="2"),
+        CallLog(task="manual", provider="openai", cost_sek=3, status="success"),
+    ])
+    db_session.commit()
+    use_db_session(api_app, db_session)
+    fake_gateway = FakeGateway(GatewayResult(findings_text("blocked"), 1, 1))
+
+    async def override_gateway_factory():
+        return lambda _model, _settings: fake_gateway
+
+    api_app.dependency_overrides[get_gateway_factory] = override_gateway_factory
+
+    transport = ASGITransport(app=api_app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post(f"/api/specs/{spec_id}/inspect", json={"model_id": model_id})
+
+    assert response.status_code == 402
+    assert response.json()["error"] == "cost_ceiling_exceeded"
+    assert response.json()["spent_sek"] == 3
+    assert response.json()["ceiling_sek"] == 2
+    assert fake_gateway.calls == 0
