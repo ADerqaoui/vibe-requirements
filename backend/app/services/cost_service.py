@@ -44,7 +44,7 @@ def cost_summary(db: Session) -> CostSummary:
 
 def current_month_spend_sek(db: Session) -> float:
     """Return successful spend since the UTC month boundary."""
-    return _sum_cost(db, (CallLog.created_at >= start_of_month_utc(),))
+    return _sum_cost(db, (_current_month_condition(),))
 
 
 def cost_ceiling_sek(db: Session) -> float:
@@ -72,13 +72,17 @@ def _sum_cost(db: Session, conditions: tuple[object, ...]) -> float:
     return float(db.scalar(statement) or 0.0)
 
 
+def _current_month_condition() -> object:
+    return func.datetime(CallLog.created_at) >= func.datetime(start_of_month_utc())
+
+
 def _provider_summaries(db: Session) -> list[CostProviderSummary]:
     rows = db.execute(
         select(CallLog.provider, func.coalesce(func.sum(CallLog.cost_sek), 0.0))
         .join(Model, Model.id == CallLog.model_id)
         .where(
             CallLog.status == SUCCESS_STATUS,
-            CallLog.created_at >= start_of_month_utc(),
+            _current_month_condition(),
             (Model.input_cost_per_1k > 0) | (Model.output_cost_per_1k > 0),
         )
         .group_by(CallLog.provider)
@@ -93,7 +97,7 @@ def _model_summaries(db: Session) -> list[CostModelSummary]:
         .join(CallLog, CallLog.model_id == Model.id)
         .where(
             CallLog.status == SUCCESS_STATUS,
-            CallLog.created_at >= start_of_month_utc(),
+            _current_month_condition(),
             (Model.input_cost_per_1k > 0) | (Model.output_cost_per_1k > 0),
         )
         .group_by(Model.id, Model.name)

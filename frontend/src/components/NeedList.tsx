@@ -1,8 +1,9 @@
 import { FormEvent, useEffect, useState } from 'react'
 import { createNeed, deleteNeed, fetchProjectNeeds, updateNeed } from '../api/needs'
+import type { GenerationParent } from '../types/generationParent'
 import type { Need, NeedPayload } from '../types/need'
 import type { SpecTreeNode } from '../types/spec'
-import { GenerationPanel, type GenerationParent } from './GenerationPanel'
+import { GenerationPanel } from './GenerationPanel'
 import { NeedCreateForm, type NeedDraft } from './NeedCreateForm'
 import { NeedRow } from './NeedRow'
 

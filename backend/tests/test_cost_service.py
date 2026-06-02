@@ -1,10 +1,11 @@
 """Cost service tests."""
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.models.call_log import CallLog
 from app.models.model import Model
 from app.models.setting import Setting
-from app.services.cost_service import cost_summary, start_of_month_utc
+from app.services.cost_service import cost_summary, current_month_spend_sek, start_of_month_utc
 
 
 def test_cost_summary_aggregates_successful_paid_spend(db_session: Session) -> None:
@@ -90,3 +91,30 @@ def test_cost_summary_aggregates_successful_paid_spend(db_session: Session) -> N
         {"model_id": openai_model.id, "model_name": "gpt", "month_sek": 4.0},
         {"model_id": anthropic_model.id, "model_name": "claude", "month_sek": 8.0},
     ]
+
+
+def test_current_month_spend_includes_db_formatted_month_boundary(db_session: Session) -> None:
+    """SQLite datetime strings at the month boundary count as current-month spend."""
+    model = Model(
+        provider="openai",
+        name="gpt",
+        api_model_id="gpt-test",
+        tier="high",
+        input_cost_per_1k=1,
+        output_cost_per_1k=1,
+        enabled=1,
+    )
+    db_session.add(model)
+    db_session.flush()
+    db_session.execute(
+        text(
+            """
+            INSERT INTO call_logs (task, provider, model_id, cost_sek, status, created_at)
+            VALUES ('manual', 'openai', :model_id, 3.25, 'success', datetime('now', 'start of month'))
+            """
+        ),
+        {"model_id": model.id},
+    )
+    db_session.commit()
+
+    assert current_month_spend_sek(db_session) == 3.25

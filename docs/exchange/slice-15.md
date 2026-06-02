@@ -29,6 +29,8 @@
 | `GET /api/cost-summary` aggregates current-month/all-time successful paid spend and floors remaining at zero. | `backend/tests/test_cost_service.py` — `test_cost_summary_aggregates_successful_paid_spend`; `backend/tests/test_cost_api.py` — `test_cost_summary_api_returns_documented_shape` | Yes |
 | `pytest` + `pnpm test` pass. | `cd backend && .venv/bin/pytest` -> 161 passed; `cd frontend && PATH="$HOME/.nvm/versions/node/v24.16.0/bin:$PATH" pnpm test` -> 28 passed | Yes |
 
+[Codex — 2026-06-02] Tightening per QA F1+F2: extracted `CostCeilingBanner.tsx`, `useCostCeilingError.ts`, `GenerationSpecSection.tsx`, `SettingsModelList.tsx`, `SettingsFields.tsx`, `SettingsProviderKeys.tsx`, and `generationParent.ts` to bring both panels under 200 lines; fixed cost_service timestamp comparison to use SQLite `datetime()` on both sides, with regression test for first-of-month boundary. Resolves Open Question: stored created_at format is NOT the same as Python's isoformat — datetime() normalization makes the comparison format-agnostic. Verification: `cd backend && .venv/bin/pytest` -> 162 passed; `cd frontend && PATH="$HOME/.nvm/versions/node/v24.16.0/bin:$PATH" pnpm test` -> 28 passed.
+
 ## ChatGPT — QA review
 - [ChatGPT — YYYY-MM-DD] ...
 
