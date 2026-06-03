@@ -3,14 +3,17 @@ import pytest
 from sqlalchemy.orm import Session
 
 from app.gateway.base import GatewayError, GatewayResult
+from app.models.call_log import CallLog
 from app.models.layer import Layer
 from app.models.model import Model
 from app.models.need import Need
 from app.models.project import Project
+from app.models.prompt import Prompt
 from app.models.spec import Spec
 from app.services.blacklist_service import BlacklistService
 from app.services.embedding_service import EMBEDDING_DIMENSIONS
 from app.services.generation_service import GenerationRuntime, ParentKind, generate_for_parent
+from app.seed.run import seed_prompts
 
 
 class FakeGateway:
@@ -52,6 +55,7 @@ def unit_vector(first: float, second: float = 0.0) -> list[float]:
 
 def seed_generation_parent(db_session: Session, parent_kind: ParentKind) -> tuple[int, Model]:
     """Seed a Need or Spec parent for generation service tests."""
+    seed_prompts(db_session)
     project = Project(name="Demo")
     model = Model(provider="ollama", name="qwen", ollama_tag="qwen", tier="mid", enabled=1)
     db_session.add(project)
@@ -94,6 +98,14 @@ async def test_generation_service_parses_fake_gateway_response(
     )
 
     assert [candidate.statement for candidate in result.candidates] == ["Brake", "Alert"]
+    log = db_session.query(CallLog).order_by(CallLog.id.desc()).first()
+    prompt = db_session.query(Prompt).filter_by(
+        task="generate_need_to_spec" if parent_kind == "need" else "generate_spec_to_child",
+        version=1,
+    ).one()
+    assert log is not None
+    assert log.prompt_id == prompt.id
+    assert log.prompt_version == prompt.version
 
 
 @pytest.mark.asyncio

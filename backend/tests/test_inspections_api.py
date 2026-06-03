@@ -13,9 +13,11 @@ from app.models.layer import Layer
 from app.models.model import Model
 from app.models.need import Need
 from app.models.project import Project
+from app.models.prompt import Prompt
 from app.models.setting import Setting
 from app.models.spec import Spec
 from app.models.spec_inspection import SpecInspection
+from app.seed.run import seed_prompts
 
 
 class FakeGateway:
@@ -52,6 +54,7 @@ def use_db_session(api_app: FastAPI, db_session: Session) -> None:
 
 def seed_spec_and_model(db_session: Session, enabled: int = 1) -> tuple[int, int]:
     """Seed one Spec and one model."""
+    seed_prompts(db_session)
     project = Project(name="Demo")
     layer = Layer(name="System Requirement", kind="cross_cutting", sort_order=10)
     db_session.add_all([project, layer])
@@ -127,6 +130,10 @@ async def test_inspection_api_persists_and_lists_newest_first(
     assert listed.json()[0]["summary"] == first_row.summary
     assert [item["id"] for item in listed.json()] == [first.json()["id"], second.json()["id"]]
     assert spec_tree.json()[0]["latest_inspection_id"] == listed.json()[0]["id"]
+    logs = db_session.scalars(select(CallLog).order_by(CallLog.id)).all()
+    prompt = db_session.query(Prompt).filter_by(task="inspect_spec", version=1).one()
+    assert {log.prompt_id for log in logs} == {prompt.id}
+    assert {log.prompt_version for log in logs} == {prompt.version}
 
 
 @pytest.mark.asyncio

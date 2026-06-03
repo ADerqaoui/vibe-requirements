@@ -45,6 +45,8 @@ async def complete_model(
     prompt: str,
     system: str | None,
     runtime: GatewayRuntime,
+    prompt_id: int | None = None,
+    prompt_version: int | None = None,
 ) -> CompletionResult:
     """Run a manual gateway call and write a call log for success or failure."""
     started_at = monotonic()
@@ -70,6 +72,8 @@ async def complete_model(
             in_tokens=0,
             out_tokens=0,
             cost_sek=0.0,
+            prompt_id=prompt_id,
+            prompt_version=prompt_version,
         )
         raise
 
@@ -92,6 +96,8 @@ async def complete_model(
         in_tokens=gateway_result.in_tokens,
         out_tokens=gateway_result.out_tokens,
         cost_sek=cost_sek,
+        prompt_id=prompt_id,
+        prompt_version=prompt_version,
     )
     return CompletionResult(
         text=gateway_result.text,
@@ -135,6 +141,8 @@ def _write_call_log(
     in_tokens: int,
     out_tokens: int,
     cost_sek: float,
+    prompt_id: int | None,
+    prompt_version: int | None,
 ) -> None:
     """Persist one call log row."""
     register_call_log_reference_tables()
@@ -143,6 +151,8 @@ def _write_call_log(
             task=MANUAL_TASK,
             provider=model.provider,
             model_id=model.id,
+            prompt_id=prompt_id,
+            prompt_version=prompt_version,
             in_tokens=in_tokens,
             out_tokens=out_tokens,
             cost_sek=cost_sek,

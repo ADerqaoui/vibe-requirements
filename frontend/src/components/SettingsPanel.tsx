@@ -5,6 +5,7 @@ import type { Model, ModelPayload } from '../types/model'
 import type { Setting, SettingsResponse } from '../types/setting'
 import { CostPanel } from './CostPanel'
 import { ModelTester } from './ModelTester'
+import { PromptsPanel } from './PromptsPanel'
 import { SettingsFields } from './SettingsFields'
 import { SettingsModelList } from './SettingsModelList'
 import { SettingsProviderKeys } from './SettingsProviderKeys'
@@ -190,6 +191,7 @@ export function SettingsPanel({ costRefreshSignal = 0 }: SettingsPanelProps) {
         </div>
       </div>
       <ModelTester models={models} />
+      <PromptsPanel />
     </section>
   )
 }

@@ -7,8 +7,10 @@ from app.models.discipline import Discipline
 from app.models.layer import Layer
 from app.models.layer_parent import LayerParent
 from app.models.model import Model
+from app.models.prompt import Prompt
 from app.models.setting import Setting
 from app.seed.models_seed import CORE_SETTINGS, MODEL_SEED_ROWS
+from app.seed.prompts_seed import DEFAULT_PROMPT_ROWS
 from app.seed.reference_data import DISCIPLINES, LAYER_PARENTS, LAYERS
 
 
@@ -65,11 +67,26 @@ def seed_models_and_settings(db: Session) -> None:
     db.commit()
 
 
+def seed_prompts(db: Session) -> None:
+    """Seed missing default prompt task/version rows without overwriting edits."""
+    for prompt_data in DEFAULT_PROMPT_ROWS:
+        prompt = db.scalar(
+            select(Prompt).where(
+                Prompt.task == prompt_data["task"],
+                Prompt.version == prompt_data["version"],
+            )
+        )
+        if prompt is None:
+            db.add(Prompt(**prompt_data))
+    db.commit()
+
+
 def main() -> None:
     """Run the reference-data seed."""
     with SessionLocal() as db:
         seed_reference_data(db)
         seed_models_and_settings(db)
+        seed_prompts(db)
 
 
 if __name__ == "__main__":

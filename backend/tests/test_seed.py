@@ -4,8 +4,10 @@ from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.models.prompt import Prompt
+from app.seed.prompts_seed import DEFAULT_PROMPT_ROWS
 from app.seed.reference_data import LAYER_PARENTS
-from app.seed.run import seed_reference_data
+from app.seed.run import seed_prompts, seed_reference_data
 
 BASE_TABLES = {
     "disciplines",
@@ -24,6 +26,48 @@ BASE_TABLES = {
     "prompts",
     "call_logs",
     "settings",
+}
+
+EXPECTED_GENERATE_NEED_TO_SPEC = (
+    "Generate child specifications for this Need.\n"
+    "Need: {parent_statement}\n"
+    "Output exactly {count} concise child specifications.\n"
+    "Use a numbered list. Do not include commentary, headings, or explanations."
+)
+
+EXPECTED_GENERATE_SPEC_TO_CHILD = (
+    "Generate child specifications for this Need.\n"
+    "Need: {parent_statement}\n"
+    "Output exactly {count} concise child specifications.\n"
+    "Use a numbered list. Do not include commentary, headings, or explanations."
+)
+
+EXPECTED_CLASSIFY_SPEC = (
+    "Classify the complexity of this specification from 1 to 5.\n"
+    "1 = trivial, 2 = simple, 3 = moderate, 4 = complex, 5 = very complex.\n"
+    "Return only one integer from 1 to 5 with no commentary.\n"
+    "Specification: {spec_statement}"
+)
+
+EXPECTED_INSPECT_SPEC = (
+    "Evaluate this requirement specification against the five criteria below.\n"
+    "Output exactly one line per criterion in this format:\n"
+    "- <Criterion>: PASS | FAIL — <short note>\n\n"
+    "Criteria:\n"
+    "- Clarity: PASS | FAIL — <short note>\n"
+    "- Measurability: PASS | FAIL — <short note>\n"
+    "- Testability: PASS | FAIL — <short note>\n"
+    "- Atomicity: PASS | FAIL — <short note>\n"
+    "- Ambiguity-free: PASS | FAIL — <short note>\n\n"
+    "Specification:\n"
+    "{spec_statement}"
+)
+
+EXPECTED_PROMPT_TEMPLATES = {
+    "generate_need_to_spec": EXPECTED_GENERATE_NEED_TO_SPEC,
+    "generate_spec_to_child": EXPECTED_GENERATE_SPEC_TO_CHILD,
+    "classify_spec": EXPECTED_CLASSIFY_SPEC,
+    "inspect_spec": EXPECTED_INSPECT_SPEC,
 }
 
 
@@ -63,6 +107,58 @@ def test_seed_reference_data_has_exact_layer_parent_rules(db_session: Session) -
     }
 
     assert actual_pairs == expected_pairs
+
+
+def test_seed_prompts_is_idempotent(db_session: Session) -> None:
+    """Default prompts seed once and re-running does not duplicate rows."""
+    seed_prompts(db_session)
+    seed_prompts(db_session)
+
+    prompts = db_session.query(Prompt).order_by(Prompt.task).all()
+
+    assert len(prompts) == 4
+    assert [(prompt.task, prompt.version) for prompt in prompts] == [
+        (row["task"], row["version"]) for row in sorted(DEFAULT_PROMPT_ROWS, key=lambda row: row["task"])
+    ]
+
+
+def test_seed_prompts_templates_are_byte_identical(db_session: Session) -> None:
+    """Seeded prompt templates match the exact pre-registry prompt strings."""
+    seed_prompts(db_session)
+
+    prompts_by_task = {
+        prompt.task: prompt
+        for prompt in db_session.query(Prompt).order_by(Prompt.task).all()
+    }
+
+    assert {
+        task: prompt.template
+        for task, prompt in prompts_by_task.items()
+    } == EXPECTED_PROMPT_TEMPLATES
+    assert (
+        prompts_by_task["generate_need_to_spec"].template
+        == prompts_by_task["generate_spec_to_child"].template
+    )
+
+
+def test_seed_prompts_preserves_existing_task_versions(db_session: Session) -> None:
+    """Prompt seed matches by task and version without overwriting existing rows."""
+    first_task = DEFAULT_PROMPT_ROWS[0]["task"]
+    db_session.add_all([
+        Prompt(task=first_task, name="Manual v1", version=1, enabled=0, template="edited"),
+        Prompt(task=first_task, name="Manual v2", version=2, enabled=1, template="higher"),
+    ])
+    db_session.commit()
+
+    seed_prompts(db_session)
+    seed_prompts(db_session)
+
+    prompts = db_session.query(Prompt).filter(Prompt.task == first_task).order_by(Prompt.version).all()
+    assert len(db_session.query(Prompt).all()) == 5
+    assert [(prompt.version, prompt.enabled, prompt.template) for prompt in prompts] == [
+        (1, 0, "edited"),
+        (2, 1, "higher"),
+    ]
 
 
 def test_blacklist_entry_requires_exactly_one_parent(db_session: Session) -> None:

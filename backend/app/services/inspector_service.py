@@ -8,12 +8,12 @@ from sqlalchemy.orm import Session
 
 from app.gateway.base import Gateway, GatewayError
 from app.inspector.parser import ParseFindingsError, parse_findings
-from app.inspector.prompts import make_inspect_prompt
 from app.models.model import Model
 from app.models.spec import Spec
 from app.models.spec_inspection import SpecInspection
 from app.services.model_service import ModelNotFoundError, get_model
 from app.services.gateway_service import GatewayRuntime, complete_model
+from app.services.prompt_service import render
 
 
 class SpecNotFoundError(Exception):
@@ -46,15 +46,17 @@ async def inspect_spec(
     spec = db.get(Spec, spec_id)
     if spec is None:
         raise SpecNotFoundError
-    prompt = make_inspect_prompt(spec.text)
+    prompt = render(db, "inspect_spec", spec_statement=spec.text)
     try:
         completion = await complete_model(
             db=db,
             model=model,
             gateway=gateway,
-            prompt=prompt,
+            prompt=prompt.text,
             system=None,
             runtime=runtime,
+            prompt_id=prompt.prompt_id,
+            prompt_version=prompt.prompt_version,
         )
         findings = parse_findings(completion.text)
     except GatewayError:
