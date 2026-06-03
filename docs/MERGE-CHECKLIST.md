@@ -13,3 +13,8 @@ Run before merging any slice PR to `main`. All must be true.
 - [ ] Branch is up to date with `main` and mergeable.
 
 After merge: delete the branch; record the merge in the slice's `## User — decisions`.
+
+## Frontend validation (added after slice 17)
+- A slice is NOT merge-ready until BOTH pass: `pnpm test` AND `pnpm build`.
+- `pnpm test` (vitest) transpiles via esbuild and does NOT typecheck — type errors only surface in `pnpm build` (`tsc -b`). Running test alone is insufficient.
+- Codex handoffs must report `pnpm typecheck` (or `pnpm build`) results, not just `pnpm test`.
