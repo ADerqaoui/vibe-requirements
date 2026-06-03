@@ -94,9 +94,10 @@ async def test_spec_generation_api_returns_candidates(api_app: FastAPI, db_sessi
         {"index": 2, "statement": "Trace"},
     ]
     log = db_session.scalars(select(CallLog)).one()
-    prompt = db_session.query(Prompt).filter_by(task="generate_spec_to_child", version=1).one()
+    prompt = db_session.query(Prompt).filter_by(task="generate_spec_to_child", version=2).one()
     assert log.prompt_id == prompt.id
     assert log.prompt_version == prompt.version
+    assert "Parent specification: Brake safely" in log.rendered_prompt
 
 
 @pytest.mark.asyncio

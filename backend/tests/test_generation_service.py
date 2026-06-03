@@ -99,13 +99,17 @@ async def test_generation_service_parses_fake_gateway_response(
 
     assert [candidate.statement for candidate in result.candidates] == ["Brake", "Alert"]
     log = db_session.query(CallLog).order_by(CallLog.id.desc()).first()
-    prompt = db_session.query(Prompt).filter_by(
-        task="generate_need_to_spec" if parent_kind == "need" else "generate_spec_to_child",
-        version=1,
-    ).one()
+    expected_task = "generate_need_to_spec" if parent_kind == "need" else "generate_spec_to_child"
+    expected_version = 1 if parent_kind == "need" else 2
+    prompt = db_session.query(Prompt).filter_by(task=expected_task, version=expected_version).one()
     assert log is not None
     assert log.prompt_id == prompt.id
     assert log.prompt_version == prompt.version
+    if parent_kind == "need":
+        assert "Need: Stop safely" in log.rendered_prompt
+        assert "Parent specification:" not in log.rendered_prompt
+    else:
+        assert "Parent specification: Stop safely" in log.rendered_prompt
 
 
 @pytest.mark.asyncio

@@ -11,3 +11,19 @@ class PromptVariableMissingError(Exception):
     def __init__(self, variable_name: str):
         super().__init__(variable_name)
         self.variable_name = variable_name
+
+
+class PromptTemplateInvalidError(Exception):
+    """Raised when a prompt template fails save-time validation."""
+
+    def __init__(self, reason: str):
+        super().__init__(reason)
+        self.reason = reason
+
+
+class PromptRenderError(Exception):
+    """Raised when rendering fails for a malformed stored template."""
+
+    def __init__(self, reason: str):
+        super().__init__(reason)
+        self.reason = reason

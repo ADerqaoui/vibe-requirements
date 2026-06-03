@@ -7,6 +7,13 @@ GENERATE_SPEC_TEMPLATE = (
     "Use a numbered list. Do not include commentary, headings, or explanations."
 )
 
+GENERATE_SPEC_TO_CHILD_V2_TEMPLATE = (
+    "Generate child specifications for this parent specification.\n"
+    "Parent specification: {parent_statement}\n"
+    "Output exactly {count} concise child specifications.\n"
+    "Use a numbered list. Do not include commentary, headings, or explanations."
+)
+
 CLASSIFY_SPEC_TEMPLATE = (
     "Classify the complexity of this specification from 1 to 5.\n"
     "1 = trivial, 2 = simple, 3 = moderate, 4 = complex, 5 = very complex.\n"
@@ -29,7 +36,7 @@ INSPECT_SPEC_TEMPLATE = (
 )
 
 DEFAULT_PROMPT_ROWS = (
-    # generate_need_to_spec and generate_spec_to_child intentionally share an identical template: pre-slice-16 code used a single make_spec_prompt() for both paths. Differentiating spec->child (and fixing the 'Need:' label when the parent is a Spec) is a behavior change deferred to a future prompt-quality/editing slice.
+    # v1 history preserves the pre-registry shared wording for auditability.
     {
         "task": "generate_need_to_spec",
         "name": "Generate Need to Spec",

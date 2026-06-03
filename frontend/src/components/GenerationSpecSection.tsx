@@ -2,7 +2,7 @@ import type { SpecTreeNode } from '../types/spec'
 import { SpecList } from './SpecList'
 
 type GenerationSpecSectionProps = {
-  classifyingSpecIds: number[]
+  classifyingSpecIds: Set<number>
   onSelectSpec?: (spec: SpecTreeNode) => void
   onSpecChanged: () => void
   selectedSpecId: number | null

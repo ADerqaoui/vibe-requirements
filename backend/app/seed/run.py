@@ -1,5 +1,5 @@
 """Idempotent reference-data seed runner."""
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, update
 from sqlalchemy.orm import Session
 
 from app.db import SessionLocal
@@ -10,7 +10,7 @@ from app.models.model import Model
 from app.models.prompt import Prompt
 from app.models.setting import Setting
 from app.seed.models_seed import CORE_SETTINGS, MODEL_SEED_ROWS
-from app.seed.prompts_seed import DEFAULT_PROMPT_ROWS
+from app.seed.prompts_seed import DEFAULT_PROMPT_ROWS, GENERATE_SPEC_TO_CHILD_V2_TEMPLATE
 from app.seed.reference_data import DISCIPLINES, LAYER_PARENTS, LAYERS
 
 
@@ -78,7 +78,36 @@ def seed_prompts(db: Session) -> None:
         )
         if prompt is None:
             db.add(Prompt(**prompt_data))
+    db.flush()
+    _seed_generate_spec_to_child_v2(db)
     db.commit()
+
+
+def _seed_generate_spec_to_child_v2(db: Session) -> None:
+    """Insert the one-time corrected Spec-to-child v2 prompt."""
+    existing_v2 = db.scalar(
+        select(Prompt).where(Prompt.task == "generate_spec_to_child", Prompt.version == 2)
+    )
+    if existing_v2 is not None:
+        return
+    v1 = db.scalar(
+        select(Prompt).where(Prompt.task == "generate_spec_to_child", Prompt.version == 1)
+    )
+    if v1 is None:
+        return
+    db.execute(update(Prompt).where(Prompt.task == "generate_spec_to_child").values(enabled=0))
+    db.add(
+        Prompt(
+            task="generate_spec_to_child",
+            name=v1.name,
+            description=v1.description,
+            layer_id=v1.layer_id,
+            discipline_scope=v1.discipline_scope,
+            version=2,
+            enabled=1,
+            template=GENERATE_SPEC_TO_CHILD_V2_TEMPLATE,
+        )
+    )
 
 
 def main() -> None:
