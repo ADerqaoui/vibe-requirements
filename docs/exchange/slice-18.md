@@ -25,6 +25,8 @@ Verification:
 | `get_active` selects layer-specific prompts and falls back to layer-NULL prompts; no-layer call unchanged. | `backend/tests/test_prompt_layer_lookup.py::test_get_active_prefers_layer_specific_prompt_and_falls_back`, `backend/tests/test_prompt_layer_lookup.py::test_get_active_prefers_discipline_and_highest_version_tie`, existing no-layer prompt service tests | Yes |
 | `pnpm test` + `pnpm build` + `pnpm typecheck` + backend `pytest` all green. | Commands listed above | Yes |
 
+- [Codex — 2026-06-03] Extracted generation action handlers/state into `frontend/src/hooks/useGenerationActions.ts`; `GenerationPanel.tsx` is 109 lines; green checks: backend `.venv/bin/pytest` 204 passed, frontend `pnpm test` 34 passed, `pnpm typecheck` pass, `pnpm build` pass.
+
 ## ChatGPT — QA review
 - [ChatGPT — YYYY-MM-DD] ...
 
