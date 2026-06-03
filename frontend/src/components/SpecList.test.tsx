@@ -9,6 +9,8 @@ const childSpec: SpecTreeNode = {
   complexity: null,
   status: 'pending',
   parent_spec_id: 4,
+  layer_id: 3,
+  layer_name: 'System Architecture',
   latest_inspection_id: null,
   children: [],
 }
@@ -20,6 +22,8 @@ const specs: SpecTreeNode[] = [
     complexity: null,
     status: 'pending',
     parent_spec_id: null,
+    layer_id: 2,
+    layer_name: 'System Requirement',
     latest_inspection_id: null,
     children: [childSpec],
   },
@@ -100,6 +104,8 @@ describe('SpecList', () => {
               statement: 'The system shall brake.',
               complexity: null,
               status: payload.decision,
+              layer_id: 2,
+              layer_name: 'System Requirement',
               created_at: '2026-05-31T01:00:00',
               updated_at: '2026-05-31T01:01:00',
             }),
@@ -132,6 +138,8 @@ describe('SpecList', () => {
     render(<SpecList onSelectSpec={onSelectSpec} specs={specs} />)
 
     expect(await screen.findByLabelText('Inspection model')).toBeInTheDocument()
+    expect(screen.getByText('System Requirement')).toBeInTheDocument()
+    expect(screen.getByText('System Architecture')).toBeInTheDocument()
     fireEvent.click(screen.getByText('The brake actuator shall clamp.'))
 
     expect(onSelectSpec).toHaveBeenCalledWith(childSpec)

@@ -1,6 +1,7 @@
 export type GenerationRequest = {
   model_id: number
   count: number
+  target_layer_id: number
 }
 
 export type GenerationCandidate = {

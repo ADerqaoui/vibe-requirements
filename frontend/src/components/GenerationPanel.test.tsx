@@ -20,6 +20,22 @@ const models: Model[] = [
   },
 ]
 
+const systemRequirement = {
+  id: 2,
+  name: 'System Requirement',
+  kind: 'cross_cutting',
+  discipline: null,
+  sort_order: 10,
+}
+
+const systemArchitecture = {
+  id: 3,
+  name: 'System Architecture',
+  kind: 'cross_cutting',
+  discipline: null,
+  sort_order: 20,
+}
+
 function jsonResponse(body: unknown): Response {
   return { ok: true, json: async () => body } as Response
 }
@@ -80,6 +96,14 @@ describe('GenerationPanel', () => {
 
         if (path === '/api/models' && method === 'GET') {
           return jsonResponse(models)
+        }
+
+        if (path === '/api/layers/allowed-children?parent_kind=need' && method === 'GET') {
+          return jsonResponse([systemRequirement])
+        }
+
+        if (path === '/api/layers/allowed-children?parent_layer_id=2' && method === 'GET') {
+          return jsonResponse([systemArchitecture])
         }
 
         if (path.startsWith('/api/needs/') && path.endsWith('/spec-tree') && method === 'GET') {
@@ -169,6 +193,8 @@ describe('GenerationPanel', () => {
               complexity: null,
               status: 'pending',
               parent_spec_id: null,
+              layer_id: systemRequirement.id,
+              layer_name: systemRequirement.name,
               latest_inspection_id: null,
               children: [],
             },
@@ -186,6 +212,8 @@ describe('GenerationPanel', () => {
             complexity: null,
             status: 'pending',
             parent_spec_id: specId,
+            layer_id: systemArchitecture.id,
+            layer_name: systemArchitecture.name,
             latest_inspection_id: null,
             children: [],
           }
@@ -194,6 +222,8 @@ describe('GenerationPanel', () => {
             id: child.id,
             need_id: 1,
             parent_spec_id: specId,
+            layer_id: systemArchitecture.id,
+            layer_name: systemArchitecture.name,
             statement: payload.statement,
             complexity: null,
             status: 'pending',
@@ -221,15 +251,28 @@ describe('GenerationPanel', () => {
 
     expect(await screen.findByLabelText('Generation model')).toBeInTheDocument()
     fireEvent.change(screen.getByLabelText('Generation count'), { target: { value: '2' } })
+    expect(screen.getByLabelText('Target layer')).toHaveValue('2')
     fireEvent.click(screen.getByRole('button', { name: 'Generate' }))
 
     expect(await screen.findByText('The system shall brake.')).toBeInTheDocument()
     expect(screen.getByText('The system shall alert.')).toBeInTheDocument()
     expect(handleSuccessfulGeneration).toHaveBeenCalledTimes(1)
+    expect(fetch).toHaveBeenCalledWith(
+      '/api/needs/1/generate',
+      expect.objectContaining({
+        body: JSON.stringify({ model_id: 3, count: 2, target_layer_id: 2 }),
+      }),
+    )
 
     fireEvent.click(screen.getAllByRole('button', { name: 'Accept' })[0])
     await waitFor(() => expect(fetch).toHaveBeenCalledWith('/api/needs/1/spec-tree'))
     expect(await screen.findAllByText('The system shall brake.')).toHaveLength(1)
+    expect(fetch).toHaveBeenCalledWith(
+      '/api/needs/1/specs',
+      expect.objectContaining({
+        body: JSON.stringify({ statement: 'The system shall brake.', target_layer_id: 2 }),
+      }),
+    )
 
     fireEvent.click(screen.getAllByRole('button', { name: 'Reject' })[0])
     await waitFor(() => expect(screen.queryByText('The system shall alert.')).not.toBeInTheDocument())
@@ -297,18 +340,22 @@ describe('GenerationPanel', () => {
   })
 
   it('generates and accepts child specs for a selected Spec', async () => {
-    render(<GenerationPanel parent={{ kind: 'spec', id: 10 }} rootNeedId={1} />)
+    render(<GenerationPanel parent={{ kind: 'spec', id: 10, layer_id: 2 }} rootNeedId={1} />)
 
     expect(await screen.findByText('qwen')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Generate' }))
     expect(await screen.findByText('The actuator shall clamp.')).toBeInTheDocument()
+    expect(screen.getByLabelText('Target layer')).toHaveValue('3')
 
     fireEvent.click(screen.getAllByRole('button', { name: 'Accept' })[0])
 
     await waitFor(() =>
       expect(fetch).toHaveBeenCalledWith(
         '/api/specs/10/specs',
-        expect.objectContaining({ method: 'POST' }),
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({ statement: 'The actuator shall clamp.', target_layer_id: 3 }),
+        }),
       ),
     )
     await waitFor(() =>
@@ -325,6 +372,8 @@ describe('GenerationPanel', () => {
           complexity: null,
           status: 'pending',
           parent_spec_id: null,
+          layer_id: systemRequirement.id,
+          layer_name: systemRequirement.name,
           latest_inspection_id: null,
           children: [
             {
@@ -333,6 +382,8 @@ describe('GenerationPanel', () => {
               complexity: null,
               status: 'pending',
               parent_spec_id: 10,
+              layer_id: systemRequirement.id,
+              layer_name: systemRequirement.name,
               latest_inspection_id: null,
               children: [],
             },
@@ -359,7 +410,7 @@ describe('GenerationPanel', () => {
     rerender(
       <GenerationPanel
         onSelectSpec={handleSelectSpec}
-        parent={{ kind: 'spec', id: 10 }}
+        parent={{ kind: 'spec', id: 10, layer_id: 2 }}
         rootNeedId={1}
       />,
     )
@@ -373,7 +424,7 @@ describe('GenerationPanel', () => {
     rerender(
       <GenerationPanel
         onSelectSpec={handleSelectSpec}
-        parent={{ kind: 'spec', id: 20 }}
+        parent={{ kind: 'spec', id: 20, layer_id: 2 }}
         rootNeedId={1}
       />,
     )
@@ -503,6 +554,8 @@ describe('GenerationPanel', () => {
           complexity: null,
           status: 'pending',
           parent_spec_id: null,
+          layer_id: systemRequirement.id,
+          layer_name: systemRequirement.name,
           latest_inspection_id: null,
           children: [],
         },
@@ -551,12 +604,12 @@ describe('GenerationPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Generate' }))
     expect(await screen.findByText('The system shall brake.')).toBeInTheDocument()
 
-    rerender(<GenerationPanel parent={{ kind: 'spec', id: 10 }} rootNeedId={1} />)
+    rerender(<GenerationPanel parent={{ kind: 'spec', id: 10, layer_id: 2 }} rootNeedId={1} />)
     await waitFor(() => expect(screen.queryByText('The system shall brake.')).not.toBeInTheDocument())
     fireEvent.click(screen.getByRole('button', { name: 'Generate' }))
     expect(await screen.findByText('The actuator shall clamp.')).toBeInTheDocument()
 
-    rerender(<GenerationPanel parent={{ kind: 'spec', id: 20 }} rootNeedId={1} />)
+    rerender(<GenerationPanel parent={{ kind: 'spec', id: 20, layer_id: 2 }} rootNeedId={1} />)
     await waitFor(() =>
       expect(screen.queryByText('The actuator shall clamp.')).not.toBeInTheDocument(),
     )

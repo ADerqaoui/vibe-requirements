@@ -47,7 +47,7 @@ async def classify_spec_complexity(
 ) -> ClassificationResult:
     """Classify Spec complexity through three required local model votes."""
     models = _required_models(db)
-    prompt = render(db, "classify_spec", spec_statement=spec.text)
+    prompt = render(db, "classify_spec", layer_id=spec.layer_id, spec_statement=spec.text)
     try:
         votes = await asyncio.gather(
             *[

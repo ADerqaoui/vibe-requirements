@@ -7,6 +7,7 @@ class GenerationRequest(BaseModel):
 
     model_id: int
     count: int = Field(ge=1, le=10)
+    target_layer_id: int | None = None
 
 
 class GenerationCandidate(BaseModel):

@@ -2,17 +2,11 @@
 from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
 
-from app.models.layer import Layer
 from app.models.need import Need
 from app.models.spec import Spec
 from app.models.spec_inspection import SpecInspection
+from app.services.layer_service import resolve_target_layer_for_need, resolve_target_layer_for_spec
 from app.services.need_service import NeedNotFoundError, get_need
-
-DEFAULT_SPEC_LAYER = "System Requirement"
-
-
-class SpecLayerNotFoundError(Exception):
-    """Raised when the default accepted spec layer is unavailable."""
 
 
 class SpecNotFoundError(Exception):
@@ -60,10 +54,15 @@ def list_children_of_spec(db: Session, spec_id: int) -> list[Spec]:
     return list(db.scalars(statement).all())
 
 
-def create_spec_for_need(db: Session, need_id: int, statement: str) -> Spec:
+def create_spec_for_need(
+    db: Session,
+    need_id: int,
+    statement: str,
+    target_layer_id: int | None = None,
+) -> Spec:
     """Persist one generated child spec under a Need with pending lifecycle status."""
     need = get_need(db, need_id)
-    layer = _default_spec_layer(db)
+    layer = resolve_target_layer_for_need(db, target_layer_id)
     spec = Spec(
         need_id=need.id,
         parent_spec_id=None,
@@ -78,10 +77,15 @@ def create_spec_for_need(db: Session, need_id: int, statement: str) -> Spec:
     return spec
 
 
-def create_spec_for_parent_spec(db: Session, spec_id: int, statement: str) -> Spec:
+def create_spec_for_parent_spec(
+    db: Session,
+    spec_id: int,
+    statement: str,
+    target_layer_id: int | None = None,
+) -> Spec:
     """Persist one generated child Spec under another Spec."""
     parent = get_spec(db, spec_id)
-    layer = _default_spec_layer(db)
+    layer = resolve_target_layer_for_spec(db, parent.layer_id, target_layer_id)
     spec = Spec(
         need_id=parent.need_id,
         parent_spec_id=parent.id,
@@ -102,14 +106,6 @@ def get_spec(db: Session, spec_id: int) -> Spec:
     if spec is None:
         raise SpecNotFoundError
     return spec
-
-
-def _default_spec_layer(db: Session) -> Layer:
-    """Return the default Need child spec layer."""
-    layer = db.scalar(select(Layer).where(Layer.name == DEFAULT_SPEC_LAYER).limit(1))
-    if layer is None:
-        raise SpecLayerNotFoundError
-    return layer
 
 
 def ensure_need_exists(db: Session, need_id: int) -> Need:

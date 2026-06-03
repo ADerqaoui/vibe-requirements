@@ -46,7 +46,7 @@ async def inspect_spec(
     spec = db.get(Spec, spec_id)
     if spec is None:
         raise SpecNotFoundError
-    prompt = render(db, "inspect_spec", spec_statement=spec.text)
+    prompt = render(db, "inspect_spec", layer_id=spec.layer_id, spec_statement=spec.text)
     try:
         completion = await complete_model(
             db=db,

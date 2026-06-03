@@ -1,6 +1,6 @@
 """Spec ORM model."""
 from sqlalchemy import CheckConstraint, ForeignKey, Integer, Text, text as sql_text
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
 
@@ -27,3 +27,4 @@ class Spec(Base):
     gen_prompt_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("prompts.id"))
     created_at: Mapped[str] = mapped_column(Text, nullable=False, server_default=sql_text("datetime('now')"))
     updated_at: Mapped[str] = mapped_column(Text, nullable=False, server_default=sql_text("datetime('now')"))
+    layer: Mapped["Layer"] = relationship("Layer")

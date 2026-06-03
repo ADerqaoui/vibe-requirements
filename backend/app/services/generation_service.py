@@ -12,6 +12,7 @@ from app.models.spec import Spec
 from app.schemas.generation import GenerationCandidate, GenerationResult
 from app.services.blacklist_service import BlacklistService
 from app.services.gateway_service import GatewayRuntime, complete_model
+from app.services.layer_service import resolve_target_layer_for_need, resolve_target_layer_for_spec
 from app.services.prompt_service import render
 
 ParentKind = Literal["need", "spec"]
@@ -37,12 +38,26 @@ async def generate_for_parent(
     gateway: Gateway,
     count: int,
     runtime: GenerationRuntime,
+    target_layer_id: int | None = None,
     blacklist_service: BlacklistService | None = None,
 ) -> GenerationResult:
     """Generate stateless child spec candidates from a Need or Spec parent."""
-    parent_statement = _parent_statement(db, parent_kind, parent_id)
+    parent = _parent(db, parent_kind, parent_id)
+    target_layer = (
+        resolve_target_layer_for_need(db, target_layer_id)
+        if parent_kind == "need"
+        else resolve_target_layer_for_spec(db, parent.layer_id, target_layer_id)
+    )
+    parent_statement = parent.statement if isinstance(parent, Need) else parent.text
     task = "generate_need_to_spec" if parent_kind == "need" else "generate_spec_to_child"
-    prompt = render(db, task, parent_statement=parent_statement, count=count)
+    prompt = render(
+        db,
+        task,
+        layer_id=target_layer.id,
+        discipline_scope=None,
+        parent_statement=parent_statement,
+        count=count,
+    )
     try:
         completion = await complete_model(
             db=db,
@@ -83,19 +98,29 @@ async def generate_specs_for_need(
     gateway: Gateway,
     count: int,
     runtime: GenerationRuntime,
+    target_layer_id: int | None = None,
 ) -> GenerationResult:
     """Generate stateless child spec candidates from a Need."""
-    return await generate_for_parent(db, "need", need.id, model, gateway, count, runtime)
+    return await generate_for_parent(
+        db,
+        "need",
+        need.id,
+        model,
+        gateway,
+        count,
+        runtime,
+        target_layer_id=target_layer_id,
+    )
 
 
-def _parent_statement(db: Session, parent_kind: ParentKind, parent_id: int) -> str:
-    """Return the parent statement used by the shared generation prompt."""
+def _parent(db: Session, parent_kind: ParentKind, parent_id: int) -> Need | Spec:
+    """Return the generation parent row."""
     if parent_kind == "need":
         need = db.get(Need, parent_id)
         if need is None:
             raise GenerationParentNotFoundError("Need not found")
-        return need.statement
+        return need
     spec = db.get(Spec, parent_id)
     if spec is None:
         raise GenerationParentNotFoundError("Spec not found")
-    return spec.text
+    return spec

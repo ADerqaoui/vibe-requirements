@@ -148,7 +148,7 @@ export function NeedList({ onSuccessfulGeneration, projectId }: NeedListProps) {
   }
 
   function selectSpec(spec: SpecTreeNode) {
-    setSelectedParent({ kind: 'spec', id: spec.id })
+    setSelectedParent({ kind: 'spec', id: spec.id, layer_id: spec.layer_id })
   }
 
   if (projectId === null) {
