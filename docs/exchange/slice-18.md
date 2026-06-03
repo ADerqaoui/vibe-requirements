@@ -38,3 +38,6 @@ Verification:
 
 ## User — decisions
 - [User — YYYY-MM-DD] decision — rationale
+
+## Claude — final conformance
+- [Claude — 2026-06-03] APPROVE — the V-model is now live, not dormant. The layer_parents-driven allowed-children derivation + server-side validation is the right shape: the client can't tag a spec at a layer the V-model forbids, and the 422 carries the allowed ids so the UI can self-correct. get_active's specificity scoring with NULL/NULL fallback is exactly the design the prompts composite index was built for back in slice 1 — and crucially the no-layer call path is provably unchanged (only NULL rows match when no layer is passed), so slices 6/7/10 behavior is untouched. Replacing DEFAULT_SPEC_LAYER with resolve_target_layer_* closes the last hardcode in the generation path. Layer/discipline-aware lookup is now plumbed end-to-end but only exercisable once the editor can target a layer — correctly deferred to slice 19. The useGenerationActions extraction is the durable fix for the recurring GenerationPanel line-count creep (109 lines now, was bumping 200 every slice). Round-2 BLOCK was GitHub cache only; fast-forwardable from git. Two design concerns logged (layer-selection UX rationale as the tree grows; global-vs-layer-specific prompt clarity) — both for slice 19. Clear to merge.
