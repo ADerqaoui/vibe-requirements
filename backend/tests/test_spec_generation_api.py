@@ -15,7 +15,7 @@ from app.models.project import Project
 from app.models.prompt import Prompt
 from app.models.spec import Spec
 from app.models.call_log import CallLog
-from app.seed.run import seed_prompts
+from app.seed.run import seed_prompts, seed_reference_data
 
 
 class FakeGateway:
@@ -48,14 +48,16 @@ def use_db_session(api_app: FastAPI, db_session: Session) -> None:
     api_app.dependency_overrides[get_db] = override_get_db
 
 
-def seed_spec_and_model(db_session: Session, enabled: int = 1) -> tuple[int, int]:
+def seed_spec_and_model(db_session: Session, enabled: int = 1) -> tuple[int, int, int]:
     """Seed a Spec parent and generation model."""
     Model.__table__
     Prompt.__table__
+    seed_reference_data(db_session)
     seed_prompts(db_session)
     project = Project(name="Demo")
-    layer = Layer(name="System Requirement", kind="cross_cutting", sort_order=10)
-    db_session.add_all([project, layer])
+    layer = db_session.query(Layer).filter_by(name="System Requirement").one()
+    target_layer = db_session.query(Layer).filter_by(name="System Architecture").one()
+    db_session.add(project)
     db_session.flush()
     need = Need(project_id=project.id, statement="Stop safely")
     db_session.add(need)
@@ -66,14 +68,15 @@ def seed_spec_and_model(db_session: Session, enabled: int = 1) -> tuple[int, int
     db_session.flush()
     spec_id = spec.id
     model_id = model.id
+    target_layer_id = target_layer.id
     db_session.commit()
-    return spec_id, model_id
+    return spec_id, model_id, target_layer_id
 
 
 @pytest.mark.asyncio
 async def test_spec_generation_api_returns_candidates(api_app: FastAPI, db_session: Session) -> None:
     """Spec generation API returns parsed candidates through the fake gateway."""
-    spec_id, model_id = seed_spec_and_model(db_session)
+    spec_id, model_id, target_layer_id = seed_spec_and_model(db_session)
     use_db_session(api_app, db_session)
 
     async def override_gateway_factory():
@@ -85,7 +88,7 @@ async def test_spec_generation_api_returns_candidates(api_app: FastAPI, db_sessi
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         response = await client.post(
             f"/api/specs/{spec_id}/generate",
-            json={"model_id": model_id, "count": 2},
+            json={"model_id": model_id, "count": 2, "target_layer_id": target_layer_id},
         )
 
     assert response.status_code == 200
@@ -106,26 +109,26 @@ async def test_spec_generation_api_missing_spec_model_disabled_and_count(
     db_session: Session,
 ) -> None:
     """Spec generation API returns requested 404, 409, and 422 paths."""
-    spec_id, disabled_model_id = seed_spec_and_model(db_session, enabled=0)
+    spec_id, disabled_model_id, target_layer_id = seed_spec_and_model(db_session, enabled=0)
     use_db_session(api_app, db_session)
 
     transport = ASGITransport(app=api_app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         missing_spec = await client.post(
             "/api/specs/999/generate",
-            json={"model_id": disabled_model_id, "count": 1},
+            json={"model_id": disabled_model_id, "count": 1, "target_layer_id": target_layer_id},
         )
         missing_model = await client.post(
             f"/api/specs/{spec_id}/generate",
-            json={"model_id": 999, "count": 1},
+            json={"model_id": 999, "count": 1, "target_layer_id": target_layer_id},
         )
         disabled_model = await client.post(
             f"/api/specs/{spec_id}/generate",
-            json={"model_id": disabled_model_id, "count": 1},
+            json={"model_id": disabled_model_id, "count": 1, "target_layer_id": target_layer_id},
         )
         invalid_count = await client.post(
             f"/api/specs/{spec_id}/generate",
-            json={"model_id": disabled_model_id, "count": 11},
+            json={"model_id": disabled_model_id, "count": 11, "target_layer_id": target_layer_id},
         )
 
     assert missing_spec.status_code == 404
@@ -140,7 +143,7 @@ async def test_spec_generation_api_parser_empty_and_gateway_failure(
     db_session: Session,
 ) -> None:
     """Parser empty maps to 422 and gateway failure maps to 502."""
-    spec_id, model_id = seed_spec_and_model(db_session)
+    spec_id, model_id, target_layer_id = seed_spec_and_model(db_session)
     use_db_session(api_app, db_session)
 
     async def empty_gateway_factory():
@@ -151,7 +154,7 @@ async def test_spec_generation_api_parser_empty_and_gateway_failure(
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         empty_response = await client.post(
             f"/api/specs/{spec_id}/generate",
-            json={"model_id": model_id, "count": 2},
+            json={"model_id": model_id, "count": 2, "target_layer_id": target_layer_id},
         )
 
     async def failing_gateway_factory():
@@ -161,7 +164,7 @@ async def test_spec_generation_api_parser_empty_and_gateway_failure(
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         failure_response = await client.post(
             f"/api/specs/{spec_id}/generate",
-            json={"model_id": model_id, "count": 2},
+            json={"model_id": model_id, "count": 2, "target_layer_id": target_layer_id},
         )
 
     assert empty_response.status_code == 422

@@ -129,3 +129,34 @@ async def test_classification_service_missing_model_prevents_gateway_calls(
 
     assert gateway_calls == 0
     assert spec.complexity is None
+
+
+@pytest.mark.asyncio
+async def test_classification_service_passes_spec_layer_to_render(db_session: Session) -> None:
+    """Classification render receives the Spec layer id."""
+    spec, models = seed_spec_and_models(db_session)
+    prompt = Prompt(
+        task="classify_spec",
+        name="Layer classify",
+        layer_id=spec.layer_id,
+        version=1,
+        enabled=1,
+        template="Layer classify {spec_statement}",
+    )
+    db_session.add(prompt)
+    db_session.commit()
+
+    def gateway_factory(_model: Model, _settings: Settings) -> FakeGateway:
+        return FakeGateway(GatewayResult("3", 1, 1))
+
+    await classify_spec_complexity(
+        db=db_session,
+        spec=spec,
+        gateway_factory=gateway_factory,
+        settings=Settings(),
+        runtime=ClassificationRuntime(retry_count=0),
+    )
+
+    logs = db_session.scalars(select(CallLog)).all()
+    assert len(logs) == len(models)
+    assert {log.prompt_id for log in logs} == {prompt.id}

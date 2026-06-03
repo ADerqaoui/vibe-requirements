@@ -1,7 +1,6 @@
-export type GenerationParent = {
-  kind: 'need' | 'spec'
-  id: number
-}
+export type GenerationParent =
+  | { kind: 'need'; id: number }
+  | { kind: 'spec'; id: number; layer_id: number }
 
 export function parentFromNeedId(needId: number | null | undefined): GenerationParent | null {
   if (needId === null || needId === undefined) {

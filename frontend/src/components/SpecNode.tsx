@@ -81,6 +81,9 @@ export function SpecNode({
         >
           {spec.statement}
         </button>
+        <span className="rounded bg-blue-50 px-2 py-1 text-xs text-blue-700">
+          {spec.layer_name}
+        </span>
         <span className={`rounded px-2 py-1 text-xs ${statusClasses(status)}`}>{status}</span>
         <span
           className="rounded bg-neutral-100 px-2 py-1 text-xs text-neutral-700"

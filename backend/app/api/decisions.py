@@ -33,6 +33,8 @@ def _spec_out(spec: Spec, latest_inspection_id: int | None) -> SpecOut:
         id=spec.id,
         need_id=spec.need_id,
         parent_spec_id=spec.parent_spec_id,
+        layer_id=spec.layer_id,
+        layer_name=spec.layer.name if spec.layer is not None else "",
         statement=spec.text,
         complexity=spec.complexity,
         status=spec.status,

@@ -14,6 +14,7 @@ from app.models.need import Need
 from app.models.project import Project
 from app.models.spec import Spec
 from app.models.spec_inspection import SpecInspection
+from app.models.prompt import Prompt
 from app.seed.run import seed_prompts
 from app.services.gateway_service import GatewayRuntime
 from app.services.inspector_service import (
@@ -149,3 +150,42 @@ def test_inspector_service_rejects_missing_or_disabled_model_before_call(
         get_enabled_inspector_model(db_session, 999)
     with pytest.raises(InspectorModelUnavailableError, match="Model is disabled"):
         get_enabled_inspector_model(db_session, disabled_model.id)
+
+
+@pytest.mark.asyncio
+async def test_inspector_service_passes_spec_layer_to_render(db_session: Session) -> None:
+    """Inspector render receives the Spec layer id."""
+    spec_id, model = seed_spec_and_model(db_session)
+    spec = db_session.get(Spec, spec_id)
+    assert spec is not None
+    prompt = Prompt(
+        task="inspect_spec",
+        name="Layer inspect",
+        layer_id=spec.layer_id,
+        version=1,
+        enabled=1,
+        template="Layer inspect {spec_statement}",
+    )
+    db_session.add(prompt)
+    db_session.commit()
+
+    await inspect_spec(
+        db=db_session,
+        spec_id=spec_id,
+        model=model,
+        gateway=FakeGateway(
+            GatewayResult(
+                "- Clarity: PASS — clear\n"
+                "- Measurability: PASS — measurable\n"
+                "- Testability: PASS — testable\n"
+                "- Atomicity: PASS — one thing\n"
+                "- Ambiguity-free: PASS — precise",
+                10,
+                5,
+            )
+        ),
+        runtime=GatewayRuntime(retry_count=0),
+    )
+
+    log = db_session.scalars(select(CallLog)).one()
+    assert log.prompt_id == prompt.id

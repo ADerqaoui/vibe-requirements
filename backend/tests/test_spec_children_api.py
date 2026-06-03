@@ -10,15 +10,17 @@ from app.models.need import Need
 from app.models.project import Project
 from app.models.prompt import Prompt
 from app.models.spec import Spec
+from app.seed.run import seed_reference_data
 
 
 def seed_spec_tree(db_session: Session) -> tuple[int, int, int, int]:
     """Seed parent, child, and grandchild Specs."""
     Model.__table__
     Prompt.__table__
+    seed_reference_data(db_session)
     project = Project(name="Demo")
-    layer = Layer(name="System Requirement", kind="cross_cutting", sort_order=10)
-    db_session.add_all([project, layer])
+    layer = db_session.query(Layer).filter_by(name="System Requirement").one()
+    db_session.add(project)
     db_session.flush()
     need = Need(project_id=project.id, statement="Stop safely")
     db_session.add(need)
@@ -60,12 +62,13 @@ async def test_spec_children_api_creates_pending_child(
 ) -> None:
     """A child Spec can be accepted under a parent Spec."""
     parent_id, _child_id, _sibling_id, _grandchild_id = seed_spec_tree(db_session)
+    target_layer = db_session.query(Layer).filter_by(name="System Architecture").one()
 
     transport = ASGITransport(app=api_app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         response = await client.post(
             f"/api/specs/{parent_id}/specs",
-            json={"statement": "New child"},
+            json={"statement": "New child", "target_layer_id": target_layer.id},
         )
 
     assert response.status_code == 201
@@ -74,6 +77,7 @@ async def test_spec_children_api_creates_pending_child(
     created_spec = db_session.get(Spec, response.json()["id"])
     assert created_spec is not None
     assert created_spec.parent_spec_id == parent_id
+    assert created_spec.layer_id == target_layer.id
     assert created_spec.status == "pending"
 
 
@@ -139,6 +143,8 @@ async def test_spec_tree_api_returns_recursive_tree(
             "complexity": None,
             "status": "pending",
             "parent_spec_id": None,
+            "layer_id": db_session.get(Spec, parent_id).layer_id,
+            "layer_name": "System Requirement",
             "latest_inspection_id": None,
             "children": [
                 {
@@ -147,6 +153,8 @@ async def test_spec_tree_api_returns_recursive_tree(
                     "complexity": None,
                     "status": "pending",
                     "parent_spec_id": parent_id,
+                    "layer_id": db_session.get(Spec, child_id).layer_id,
+                    "layer_name": "System Requirement",
                     "latest_inspection_id": None,
                     "children": [
                         {
@@ -155,6 +163,8 @@ async def test_spec_tree_api_returns_recursive_tree(
                             "complexity": None,
                             "status": "pending",
                             "parent_spec_id": child_id,
+                            "layer_id": db_session.get(Spec, grandchild_id).layer_id,
+                            "layer_name": "System Requirement",
                             "latest_inspection_id": None,
                             "children": [],
                         },
@@ -168,6 +178,8 @@ async def test_spec_tree_api_returns_recursive_tree(
             "complexity": None,
             "status": "pending",
             "parent_spec_id": None,
+            "layer_id": db_session.get(Spec, sibling_id).layer_id,
+            "layer_name": "System Requirement",
             "latest_inspection_id": None,
             "children": [],
         },

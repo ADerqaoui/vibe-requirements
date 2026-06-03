@@ -1,24 +1,32 @@
 import type { FormEvent } from 'react'
+import type { Layer } from '../types/layer'
 import type { Model } from '../types/model'
+import { LayerSelect } from './LayerSelect'
 
 type GenerationFormProps = {
+  allowedLayers: Layer[]
   count: number
   isGenerating: boolean
   modelId: number | null
   models: Model[]
   onCountChange: (count: number) => void
   onGenerate: (event: FormEvent<HTMLFormElement>) => void
+  onLayerChange: (layerId: number) => void
   onModelIdChange: (modelId: number) => void
+  selectedLayerId: number | null
 }
 
 export function GenerationForm({
+  allowedLayers,
   count,
   isGenerating,
   modelId,
   models,
   onCountChange,
   onGenerate,
+  onLayerChange,
   onModelIdChange,
+  selectedLayerId,
 }: GenerationFormProps) {
   return (
     <form className="mt-3 flex flex-wrap items-end gap-3" onSubmit={onGenerate}>
@@ -39,6 +47,11 @@ export function GenerationForm({
           ))}
         </select>
       </label>
+      <LayerSelect
+        layers={allowedLayers}
+        onLayerChange={onLayerChange}
+        selectedLayerId={selectedLayerId}
+      />
       <label className="grid gap-1 text-xs font-medium text-neutral-600">
         Count
         <input
@@ -53,7 +66,7 @@ export function GenerationForm({
       </label>
       <button
         className="rounded-md bg-neutral-950 px-3 py-2 text-sm text-white disabled:bg-neutral-400"
-        disabled={isGenerating || modelId === null}
+        disabled={isGenerating || modelId === null || selectedLayerId === null}
         type="submit"
       >
         {isGenerating ? 'Generating...' : 'Generate'}

@@ -13,7 +13,7 @@ from app.models.spec import Spec
 from app.services.blacklist_service import BlacklistService
 from app.services.embedding_service import EMBEDDING_DIMENSIONS
 from app.services.generation_service import GenerationRuntime, ParentKind, generate_for_parent
-from app.seed.run import seed_prompts
+from app.seed.run import seed_prompts, seed_reference_data
 
 
 class FakeGateway:
@@ -55,6 +55,7 @@ def unit_vector(first: float, second: float = 0.0) -> list[float]:
 
 def seed_generation_parent(db_session: Session, parent_kind: ParentKind) -> tuple[int, Model]:
     """Seed a Need or Spec parent for generation service tests."""
+    seed_reference_data(db_session)
     seed_prompts(db_session)
     project = Project(name="Demo")
     model = Model(provider="ollama", name="qwen", ollama_tag="qwen", tier="mid", enabled=1)
@@ -67,15 +68,20 @@ def seed_generation_parent(db_session: Session, parent_kind: ParentKind) -> tupl
         db_session.add(model)
         db_session.commit()
         return need.id, model
-    layer = Layer(name="System Requirement", kind="cross_cutting", sort_order=10)
-    db_session.add(layer)
-    db_session.flush()
+    layer = db_session.query(Layer).filter_by(name="System Requirement").one()
     spec = Spec(need_id=need.id, layer_id=layer.id, text="Stop safely", source="ai")
     db_session.add_all([spec, model])
     db_session.flush()
     parent_id = spec.id
     db_session.commit()
     return parent_id, model
+
+
+def target_layer_id(db_session: Session, parent_kind: ParentKind) -> int | None:
+    """Return explicit target only for Spec parents with multiple allowed children."""
+    if parent_kind == "need":
+        return None
+    return db_session.query(Layer).filter_by(name="System Architecture").one().id
 
 
 @pytest.mark.asyncio
@@ -95,6 +101,7 @@ async def test_generation_service_parses_fake_gateway_response(
         gateway=FakeGateway(GatewayResult("1. Brake\n2. Alert", 10, 8)),
         count=2,
         runtime=GenerationRuntime(retry_count=0),
+        target_layer_id=target_layer_id(db_session, parent_kind),
     )
 
     assert [candidate.statement for candidate in result.candidates] == ["Brake", "Alert"]
@@ -130,6 +137,7 @@ async def test_generation_service_parser_empty_propagates(
             gateway=FakeGateway(GatewayResult("Specifications:", 1, 1)),
             count=2,
             runtime=GenerationRuntime(retry_count=0),
+            target_layer_id=target_layer_id(db_session, parent_kind),
         )
 
 
@@ -151,6 +159,7 @@ async def test_generation_service_gateway_failure_propagates(
             gateway=FakeGateway(GatewayError("down")),
             count=2,
             runtime=GenerationRuntime(retry_count=0),
+            target_layer_id=target_layer_id(db_session, parent_kind),
         )
 
 

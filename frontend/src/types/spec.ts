@@ -2,6 +2,8 @@ export type Spec = {
   id: number
   need_id: number
   parent_spec_id: number | null
+  layer_id: number
+  layer_name: string
   statement: string
   complexity: number | null
   status: string
@@ -12,6 +14,7 @@ export type Spec = {
 
 export type SpecPayload = {
   statement: string
+  target_layer_id: number
 }
 
 export type SpecTreeNode = {
@@ -20,6 +23,8 @@ export type SpecTreeNode = {
   complexity: number | null
   status: string
   parent_spec_id: number | null
+  layer_id: number
+  layer_name: string
   latest_inspection_id: number | null
   children: SpecTreeNode[]
 }

@@ -1,7 +1,7 @@
 """DB-backed prompt lookup and rendering."""
 from dataclasses import dataclass
 
-from sqlalchemy import desc, func, select, update
+from sqlalchemy import desc, func, or_, select, update
 from sqlalchemy.orm import Session
 
 from app.models.prompt import Prompt
@@ -22,22 +22,46 @@ class RenderedPrompt:
     prompt_version: int
 
 
-def get_active(db: Session, task: str) -> Prompt:
-    """Return the highest enabled prompt version for one task."""
-    prompt = db.scalar(
+def get_active(
+    db: Session,
+    task: str,
+    layer_id: int | None = None,
+    discipline_scope: str | None = None,
+) -> Prompt:
+    """Return the most specific enabled prompt for one task."""
+    prompts = db.scalars(
         select(Prompt)
-        .where(Prompt.task == task, Prompt.enabled == 1)
+        .where(
+            Prompt.task == task,
+            Prompt.enabled == 1,
+            or_(Prompt.layer_id == layer_id, Prompt.layer_id.is_(None)),
+            or_(Prompt.discipline_scope == discipline_scope, Prompt.discipline_scope.is_(None)),
+        )
         .order_by(desc(Prompt.version), desc(Prompt.id))
-        .limit(1)
+    ).all()
+    prompt = max(
+        prompts,
+        key=lambda item: (
+            _specificity_score(item, layer_id, discipline_scope),
+            item.version,
+            item.id,
+        ),
+        default=None,
     )
     if prompt is None:
         raise PromptNotFoundError(task)
     return prompt
 
 
-def render(db: Session, task: str, **variables: object) -> RenderedPrompt:
+def render(
+    db: Session,
+    task: str,
+    layer_id: int | None = None,
+    discipline_scope: str | None = None,
+    **variables: object,
+) -> RenderedPrompt:
     """Render the active task prompt with Python str.format."""
-    prompt = get_active(db, task)
+    prompt = get_active(db, task, layer_id=layer_id, discipline_scope=discipline_scope)
     try:
         text = prompt.template.format(**variables)
     except KeyError as error:
@@ -126,3 +150,17 @@ def _next_version(db: Session, task: str) -> int:
     """Return one more than the current maximum version for a task."""
     max_version = db.scalar(select(func.max(Prompt.version)).where(Prompt.task == task))
     return int(max_version or 0) + 1
+
+
+def _specificity_score(
+    prompt: Prompt,
+    layer_id: int | None,
+    discipline_scope: str | None,
+) -> int:
+    """Score layer/discipline prompt specificity."""
+    score = 0
+    if prompt.layer_id is not None and prompt.layer_id == layer_id:
+        score += 2
+    if prompt.discipline_scope is not None and prompt.discipline_scope == discipline_scope:
+        score += 1
+    return score

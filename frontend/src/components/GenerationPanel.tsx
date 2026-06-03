@@ -3,6 +3,7 @@ import { createNeedBlacklistEntry, createSpecBlacklistEntry } from '../api/black
 import classifySpec from '../api/classification'
 import { generateChildSpecs, generateSpecs } from '../api/generation'
 import { createChildSpec, createNeedSpec } from '../api/specs'
+import { useAllowedChildLayers } from '../hooks/useAllowedChildLayers'
 import { useCostCeilingError, type CostCeilingBannerState } from '../hooks/useCostCeilingError'
 import { useClassifyingSpecs } from '../hooks/useClassifyingSpecs'
 import { useGenerationModels } from '../hooks/useGenerationModels'
@@ -11,6 +12,7 @@ import { useParentSpecTree } from '../hooks/useParentSpecTree'
 import type { GenerationCandidate } from '../types/generation'
 import { parentFromNeedId, parentKey, type GenerationParent } from '../types/generationParent'
 import type { SpecTreeNode } from '../types/spec'
+import { errorMessage } from '../utils/errorMessage'
 import { CostCeilingBanner } from './CostCeilingBanner'
 import { GenerationCandidates } from './GenerationCandidates'
 import { GenerationForm } from './GenerationForm'
@@ -23,13 +25,6 @@ type GenerationPanelProps = {
   parent?: GenerationParent | null
   onSelectSpec?: (spec: SpecTreeNode) => void
   onSuccessfulGeneration?: () => void
-}
-
-function errorMessage(error: unknown): string {
-  if (error instanceof Error) {
-    return error.message
-  }
-  return String(error)
 }
 
 export function GenerationPanel({
@@ -52,6 +47,7 @@ export function GenerationPanel({
   const [candidates, setCandidates] = useState<GenerationCandidate[]>([])
   const [allCandidatesBlocked, setAllCandidatesBlocked] = useState(false)
   const [isGenerating, setIsGenerating] = useState(false)
+  const { allowedLayers, selectedLayerId, setSelectedLayerId } = useAllowedChildLayers(generationParent, handleError)
   const { modelId, models, setModelId } = useGenerationModels(handleError)
   const { blacklistCount, loadBlacklistCount } = useParentBlacklist()
   const { clearSpecTree, loadSpecTree, setSpecComplexity, specs } = useParentSpecTree()
@@ -74,16 +70,17 @@ export function GenerationPanel({
 
   async function handleGenerate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (generationParent === null || modelId === null) {
+    if (generationParent === null || modelId === null || selectedLayerId === null) {
       return
     }
+    const payload = { model_id: modelId, count, target_layer_id: selectedLayerId }
     setIsGenerating(true)
     setAllCandidatesBlocked(false)
     try {
       const result =
         generationParent.kind === 'need'
-          ? await generateSpecs(generationParent.id, { model_id: modelId, count })
-          : await generateChildSpecs(generationParent.id, { model_id: modelId, count })
+          ? await generateSpecs(generationParent.id, payload)
+          : await generateChildSpecs(generationParent.id, payload)
       setCandidates(result.candidates)
       setAllCandidatesBlocked(result.candidates.length === 0)
       setCeilingBanner(null)
@@ -99,14 +96,15 @@ export function GenerationPanel({
   }
 
   async function handleAccept(candidate: GenerationCandidate) {
-    if (generationParent === null) {
+    if (generationParent === null || selectedLayerId === null) {
       return
     }
+    const payload = { statement: candidate.statement, target_layer_id: selectedLayerId }
     try {
       const createdSpec =
         generationParent.kind === 'need'
-          ? await createNeedSpec(generationParent.id, { statement: candidate.statement })
-          : await createChildSpec(generationParent.id, { statement: candidate.statement })
+          ? await createNeedSpec(generationParent.id, payload)
+          : await createChildSpec(generationParent.id, payload)
       addClassifyingSpecId(createdSpec.id)
       setCandidates((currentCandidates) =>
         currentCandidates.filter((item) => item.index !== candidate.index),
@@ -169,13 +167,16 @@ export function GenerationPanel({
       )}
       {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
       <GenerationForm
+        allowedLayers={allowedLayers}
         count={count}
         isGenerating={isGenerating}
         modelId={modelId}
         models={models}
         onCountChange={setCount}
         onGenerate={handleGenerate}
+        onLayerChange={setSelectedLayerId}
         onModelIdChange={setModelId}
+        selectedLayerId={selectedLayerId}
       />
 
       <GenerationCandidates candidates={candidates} onAccept={handleAccept} onReject={handleReject} />

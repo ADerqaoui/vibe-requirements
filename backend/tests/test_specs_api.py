@@ -10,15 +10,16 @@ from app.models.need import Need
 from app.models.prompt import Prompt
 from app.models.project import Project
 from app.models.spec import Spec
+from app.seed.run import seed_reference_data
 
 
 def seed_need_with_layer(db_session: Session) -> tuple[int, int]:
     """Seed two Needs and the default Spec layer."""
     Model.__table__
     Prompt.__table__
+    seed_reference_data(db_session)
     project = Project(name="Demo")
-    layer = Layer(name="System Requirement", kind="cross_cutting", sort_order=10)
-    db_session.add_all([project, layer])
+    db_session.add(project)
     db_session.flush()
     need = Need(project_id=project.id, statement="Stop safely")
     other_need = Need(project_id=project.id, statement="Accelerate safely")
@@ -53,12 +54,32 @@ async def test_specs_api_creates_and_lists_only_need_specs(
     assert create_response.status_code == 201
     assert create_response.json()["statement"] == "The system shall brake."
     assert create_response.json()["parent_spec_id"] is None
+    assert create_response.json()["layer_name"] == "System Requirement"
     assert [item["statement"] for item in list_response.json()] == ["The system shall brake."]
     assert [item["parent_spec_id"] for item in list_response.json()] == [None]
 
     created_spec = db_session.get(Spec, create_response.json()["id"])
     assert created_spec is not None
     assert created_spec.status == "pending"
+    assert created_spec.layer_id == layer_id
+
+
+@pytest.mark.asyncio
+async def test_spec_tree_includes_layer_badges(api_app: FastAPI, db_session: Session) -> None:
+    """Spec tree responses include layer id and display name."""
+    need_id, _other_need_id = seed_need_with_layer(db_session)
+    layer = db_session.query(Layer).filter_by(name="System Requirement").one()
+    spec = Spec(need_id=need_id, layer_id=layer.id, text="Root", source="ai")
+    db_session.add(spec)
+    db_session.commit()
+
+    transport = ASGITransport(app=api_app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get(f"/api/needs/{need_id}/spec-tree")
+
+    assert response.status_code == 200
+    assert response.json()[0]["layer_id"] == layer.id
+    assert response.json()[0]["layer_name"] == "System Requirement"
 
 
 @pytest.mark.asyncio

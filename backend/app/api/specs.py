@@ -1,13 +1,14 @@
 """Specs API routes."""
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.models.spec import Spec
 from app.schemas.spec import SpecCreate, SpecOut, SpecTreeNode
 from app.services.need_service import NeedNotFoundError
+from app.services.layer_service import LayerNotAllowedForParentError, TargetLayerRequiredError
 from app.services.spec_service import (
-    SpecLayerNotFoundError,
     SpecNotFoundError,
     create_spec_for_parent_spec,
     create_spec_for_need,
@@ -50,14 +51,13 @@ async def create_spec_route(
 ) -> SpecOut:
     """Create a spec under a Need."""
     try:
-        return _spec_out(create_spec_for_need(db, need_id, payload.statement), None)
+        return _spec_out(create_spec_for_need(db, need_id, payload.statement, payload.target_layer_id), None)
     except NeedNotFoundError as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Need not found") from error
-    except SpecLayerNotFoundError as error:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Default spec layer not found",
-        ) from error
+    except TargetLayerRequiredError:
+        return _target_layer_required_response()
+    except LayerNotAllowedForParentError as error:
+        return _layer_not_allowed_response(error)
 
 
 @router.get("/specs/{spec_id}/specs", response_model=list[SpecOut])
@@ -79,14 +79,13 @@ async def create_child_spec_route(
 ) -> SpecOut:
     """Create a child Spec under a Spec."""
     try:
-        return _spec_out(create_spec_for_parent_spec(db, spec_id, payload.statement), None)
+        return _spec_out(create_spec_for_parent_spec(db, spec_id, payload.statement, payload.target_layer_id), None)
     except SpecNotFoundError as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Spec not found") from error
-    except SpecLayerNotFoundError as error:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Default spec layer not found",
-        ) from error
+    except TargetLayerRequiredError:
+        return _target_layer_required_response()
+    except LayerNotAllowedForParentError as error:
+        return _layer_not_allowed_response(error)
 
 
 def _spec_out(spec: Spec, latest_inspection_id: int | None) -> SpecOut:
@@ -95,6 +94,8 @@ def _spec_out(spec: Spec, latest_inspection_id: int | None) -> SpecOut:
         id=spec.id,
         need_id=spec.need_id,
         parent_spec_id=spec.parent_spec_id,
+        layer_id=spec.layer_id,
+        layer_name=_layer_name(spec),
         statement=spec.text,
         complexity=spec.complexity,
         status=spec.status,
@@ -113,6 +114,8 @@ def _spec_tree(specs: list[Spec], latest_ids: dict[int, int]) -> list[SpecTreeNo
             complexity=spec.complexity,
             status=spec.status,
             parent_spec_id=spec.parent_spec_id,
+            layer_id=spec.layer_id,
+            layer_name=_layer_name(spec),
             latest_inspection_id=latest_ids.get(spec.id),
             children=[],
         )
@@ -128,3 +131,29 @@ def _spec_tree(specs: list[Spec], latest_ids: dict[int, int]) -> list[SpecTreeNo
         if parent is not None:
             parent.children.append(node)
     return roots
+
+
+def _layer_name(spec: Spec) -> str:
+    """Return a display layer name for serialized specs."""
+    layer = getattr(spec, "layer", None)
+    return layer.name if layer is not None else ""
+
+
+def _target_layer_required_response() -> JSONResponse:
+    """Return the target-layer-required 422 body."""
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+        content={"error": "target_layer_required"},
+    )
+
+
+def _layer_not_allowed_response(error: LayerNotAllowedForParentError) -> JSONResponse:
+    """Return the disallowed target layer 422 body."""
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+        content={
+            "error": "layer_not_allowed_for_parent",
+            "target_layer_id": error.target_layer_id,
+            "allowed_layer_ids": error.allowed_layer_ids,
+        },
+    )

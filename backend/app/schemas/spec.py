@@ -6,6 +6,7 @@ class SpecCreate(BaseModel):
     """Request body for accepting a generated spec."""
 
     statement: str = Field(min_length=1)
+    target_layer_id: int | None = None
 
     @field_validator("statement")
     @classmethod
@@ -25,6 +26,8 @@ class SpecOut(BaseModel):
     id: int
     need_id: int
     parent_spec_id: int | None
+    layer_id: int
+    layer_name: str
     statement: str
     complexity: int | None
     status: str
@@ -41,5 +44,7 @@ class SpecTreeNode(BaseModel):
     complexity: int | None
     status: str
     parent_spec_id: int | None
+    layer_id: int
+    layer_name: str
     latest_inspection_id: int | None = None
     children: list["SpecTreeNode"]

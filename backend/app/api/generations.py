@@ -1,5 +1,6 @@
 """Generation API routes."""
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 from app.api.blacklist import get_blacklist_service
@@ -20,6 +21,7 @@ from app.services.generation_service import (
     ParentKind,
     generate_for_parent,
 )
+from app.services.layer_service import LayerNotAllowedForParentError, TargetLayerRequiredError
 from app.services.model_service import ModelNotFoundError, get_model
 
 router = APIRouter(tags=["generations"])
@@ -94,6 +96,7 @@ async def _generate_specs_for_parent(
                 retry_count=settings.llm_retry_count,
                 timeout_seconds=_timeout_for_provider(model.provider, settings),
             ),
+            target_layer_id=payload.target_layer_id,
             blacklist_service=blacklist_service,
         )
     except GenerationParentNotFoundError as error:
@@ -101,6 +104,20 @@ async def _generate_specs_for_parent(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=detail) from error
     except ParseError as error:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(error)) from error
+    except TargetLayerRequiredError:
+        return JSONResponse(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            content={"error": "target_layer_required"},
+        )
+    except LayerNotAllowedForParentError as error:
+        return JSONResponse(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            content={
+                "error": "layer_not_allowed_for_parent",
+                "target_layer_id": error.target_layer_id,
+                "allowed_layer_ids": error.allowed_layer_ids,
+            },
+        )
     except CostCeilingExceededError as error:
         return cost_ceiling_response(error)
     except GatewayError as error:

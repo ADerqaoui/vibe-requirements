@@ -13,6 +13,7 @@ from app.api.gateway import router as gateway_router
 from app.api.generations import router as generations_router
 from app.api.health import router as health_router
 from app.api.inspections import router as inspections_router
+from app.api.layers import router as layers_router
 from app.api.models import router as models_router
 from app.api.needs import router as needs_router
 from app.api.projects import router as projects_router
@@ -44,6 +45,7 @@ def create_app() -> FastAPI:
     app.include_router(inspections_router, prefix="/api")
     app.include_router(decisions_router, prefix="/api")
     app.include_router(classification_router, prefix="/api")
+    app.include_router(layers_router, prefix="/api")
     app.include_router(models_router, prefix="/api")
     app.include_router(gateway_router, prefix="/api")
     app.include_router(settings_router, prefix="/api")
