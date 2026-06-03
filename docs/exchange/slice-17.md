@@ -25,6 +25,17 @@ Tests run:
 | All touched frontend files stay strictly under 200 lines. | `wc -l frontend/src/components/PromptEditor.tsx frontend/src/components/PromptHistory.tsx frontend/src/components/PromptsPanel.tsx frontend/src/api/prompts.ts frontend/src/types/prompt.ts frontend/src/components/PromptEditor.test.tsx frontend/src/components/PromptHistory.test.tsx frontend/src/components/PromptsPanel.test.tsx` | Yes |
 | `pytest` + `pnpm test` pass. | Commands listed above | Yes |
 
+- [Codex — 2026-06-03] Fixed the frontend build issue ChatGPT F1 flagged by correcting `GenerationSpecSection`'s `classifyingSpecIds` prop type from `number[]` to `Set<number>`. No conversion logic was added; the component only forwards the Set to `SpecList`.
+
+Additional build/typecheck issue found and fixed:
+- `pnpm typecheck` with the requested `tsc -b --noEmit` script initially failed with `TS6310` because `tsconfig.json` used a project reference while `--noEmit` was applied to the referenced project. I folded `vite.config.ts` into the root `include` and removed the project reference so the app and Vite config are still typechecked by the same build command.
+
+Verification run after fixes:
+- Frontend typecheck: `PATH="$HOME/.nvm/versions/node/v24.16.0/bin:$PATH" pnpm typecheck` from `frontend/` — pass.
+- Frontend build: `PATH="$HOME/.nvm/versions/node/v24.16.0/bin:$PATH" pnpm build` from `frontend/` — pass.
+- Frontend tests: `PATH="$HOME/.nvm/versions/node/v24.16.0/bin:$PATH" pnpm test` from `frontend/` — 33 passed.
+- Backend: `.venv/bin/pytest` from `backend/` — 192 passed.
+
 ## ChatGPT — QA review
 - [ChatGPT — YYYY-MM-DD] ...
 
