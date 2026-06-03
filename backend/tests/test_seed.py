@@ -5,7 +5,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models.prompt import Prompt
-from app.seed.prompts_seed import DEFAULT_PROMPT_ROWS
+from app.seed.prompts_seed import DEFAULT_PROMPT_ROWS, GENERATE_SPEC_TO_CHILD_V2_TEMPLATE
 from app.seed.reference_data import LAYER_PARENTS
 from app.seed.run import seed_prompts, seed_reference_data
 
@@ -36,8 +36,8 @@ EXPECTED_GENERATE_NEED_TO_SPEC = (
 )
 
 EXPECTED_GENERATE_SPEC_TO_CHILD = (
-    "Generate child specifications for this Need.\n"
-    "Need: {parent_statement}\n"
+    "Generate child specifications for this parent specification.\n"
+    "Parent specification: {parent_statement}\n"
     "Output exactly {count} concise child specifications.\n"
     "Use a numbered list. Do not include commentary, headings, or explanations."
 )
@@ -116,9 +116,13 @@ def test_seed_prompts_is_idempotent(db_session: Session) -> None:
 
     prompts = db_session.query(Prompt).order_by(Prompt.task).all()
 
-    assert len(prompts) == 4
+    assert len(prompts) == 5
     assert [(prompt.task, prompt.version) for prompt in prompts] == [
-        (row["task"], row["version"]) for row in sorted(DEFAULT_PROMPT_ROWS, key=lambda row: row["task"])
+        ("classify_spec", 1),
+        ("generate_need_to_spec", 1),
+        ("generate_spec_to_child", 1),
+        ("generate_spec_to_child", 2),
+        ("inspect_spec", 1),
     ]
 
 
@@ -126,18 +130,31 @@ def test_seed_prompts_templates_are_byte_identical(db_session: Session) -> None:
     """Seeded prompt templates match the exact pre-registry prompt strings."""
     seed_prompts(db_session)
 
-    prompts_by_task = {
+    active_prompts_by_task = {
         prompt.task: prompt
-        for prompt in db_session.query(Prompt).order_by(Prompt.task).all()
+        for prompt in db_session.query(Prompt).filter(Prompt.enabled == 1).order_by(Prompt.task).all()
     }
+    spec_to_child_history = db_session.query(Prompt).filter_by(
+        task="generate_spec_to_child",
+        version=1,
+    ).one()
 
     assert {
         task: prompt.template
-        for task, prompt in prompts_by_task.items()
+        for task, prompt in active_prompts_by_task.items()
     } == EXPECTED_PROMPT_TEMPLATES
     assert (
-        prompts_by_task["generate_need_to_spec"].template
-        == prompts_by_task["generate_spec_to_child"].template
+        active_prompts_by_task["generate_need_to_spec"].template
+        != active_prompts_by_task["generate_spec_to_child"].template
+    )
+    assert (
+        active_prompts_by_task["generate_spec_to_child"].template
+        == GENERATE_SPEC_TO_CHILD_V2_TEMPLATE
+    )
+    assert "Parent specification" in active_prompts_by_task["generate_spec_to_child"].template
+    assert (
+        active_prompts_by_task["generate_need_to_spec"].template
+        == spec_to_child_history.template
     )
 
 
@@ -154,11 +171,28 @@ def test_seed_prompts_preserves_existing_task_versions(db_session: Session) -> N
     seed_prompts(db_session)
 
     prompts = db_session.query(Prompt).filter(Prompt.task == first_task).order_by(Prompt.version).all()
-    assert len(db_session.query(Prompt).all()) == 5
+    assert len(db_session.query(Prompt).all()) == 6
     assert [(prompt.version, prompt.enabled, prompt.template) for prompt in prompts] == [
         (1, 0, "edited"),
         (2, 1, "higher"),
     ]
+
+
+def test_seed_prompts_corrects_spec_to_child_once(db_session: Session) -> None:
+    """Fresh seed creates active corrected v2 and leaves v1 history disabled."""
+    seed_prompts(db_session)
+    seed_prompts(db_session)
+
+    prompts = db_session.query(Prompt).filter_by(task="generate_spec_to_child").order_by(Prompt.version).all()
+
+    assert len(prompts) == 2
+    assert [(prompt.version, prompt.enabled) for prompt in prompts] == [(1, 0), (2, 1)]
+    assert prompts[1].template == GENERATE_SPEC_TO_CHILD_V2_TEMPLATE
+    assert "parent specification" in prompts[1].template
+    assert "Need:" not in prompts[1].template
+    need_prompt = db_session.query(Prompt).filter_by(task="generate_need_to_spec", enabled=1).one()
+    assert need_prompt.version == 1
+    assert need_prompt.template == EXPECTED_GENERATE_NEED_TO_SPEC
 
 
 def test_blacklist_entry_requires_exactly_one_parent(db_session: Session) -> None:

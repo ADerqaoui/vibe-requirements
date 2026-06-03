@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { fetchPrompts } from '../api/prompts'
 import type { Prompt } from '../types/prompt'
+import { PromptEditor } from './PromptEditor'
+import { PromptHistory } from './PromptHistory'
 
 function toErrorMessage(error: unknown): string {
   if (error instanceof Error) {
@@ -17,36 +19,45 @@ export function PromptsPanel() {
   const [prompts, setPrompts] = useState<Prompt[]>([])
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [editingTask, setEditingTask] = useState<string | null>(null)
+  const [historyTask, setHistoryTask] = useState<string | null>(null)
+
+  async function loadPrompts(shouldCancel: () => boolean = () => false) {
+    try {
+      const loadedPrompts = await fetchPrompts()
+      if (shouldCancel()) {
+        return
+      }
+      setPrompts(loadedPrompts)
+      setError(null)
+    } catch (loadError: unknown) {
+      if (!shouldCancel()) {
+        setError(toErrorMessage(loadError))
+      }
+    } finally {
+      if (!shouldCancel()) {
+        setIsLoading(false)
+      }
+    }
+  }
 
   useEffect(() => {
     let didCancel = false
-    fetchPrompts()
-      .then((loadedPrompts) => {
-        if (didCancel) {
-          return
-        }
-        setPrompts(loadedPrompts)
-        setError(null)
-      })
-      .catch((loadError: unknown) => {
-        if (!didCancel) {
-          setError(toErrorMessage(loadError))
-        }
-      })
-      .finally(() => {
-        if (!didCancel) {
-          setIsLoading(false)
-        }
-      })
+    void loadPrompts(() => didCancel)
     return () => {
       didCancel = true
     }
   }, [])
 
+  async function refreshAfterChange() {
+    setIsLoading(true)
+    await loadPrompts()
+    setEditingTask(null)
+  }
+
   return (
     <section className="mt-5 rounded-md border border-neutral-200 bg-white p-3">
       <h3 className="text-sm font-semibold text-neutral-900">Prompts</h3>
-      <p className="mt-1 text-xs text-neutral-500">Editable in a future slice.</p>
       {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
       {isLoading ? <p className="mt-2 text-sm text-neutral-500">Loading prompts...</p> : null}
       <ul className="mt-3 space-y-2">
@@ -60,7 +71,23 @@ export function PromptsPanel() {
                   {scopeText(prompt.discipline_scope)}
                 </p>
               </div>
-              <p className="text-xs text-neutral-500">Updated {prompt.updated_at}</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-xs text-neutral-500">Updated {prompt.updated_at}</p>
+                <button
+                  className="rounded border border-neutral-300 px-2 py-1 text-xs"
+                  onClick={() => setEditingTask(prompt.task)}
+                  type="button"
+                >
+                  Edit
+                </button>
+                <button
+                  className="rounded border border-neutral-300 px-2 py-1 text-xs"
+                  onClick={() => setHistoryTask(prompt.task)}
+                  type="button"
+                >
+                  History
+                </button>
+              </div>
             </div>
             {prompt.description && <p className="mt-2 text-sm text-neutral-600">{prompt.description}</p>}
             <details className="mt-2">
@@ -71,6 +98,20 @@ export function PromptsPanel() {
                 {prompt.template}
               </pre>
             </details>
+            {editingTask === prompt.task ? (
+              <PromptEditor
+                prompt={prompt}
+                onCancel={() => setEditingTask(null)}
+                onSaved={() => void refreshAfterChange()}
+              />
+            ) : null}
+            {historyTask === prompt.task ? (
+              <PromptHistory
+                task={prompt.task}
+                onClose={() => setHistoryTask(null)}
+                onPromoted={() => void refreshAfterChange()}
+              />
+            ) : null}
           </li>
         ))}
       </ul>

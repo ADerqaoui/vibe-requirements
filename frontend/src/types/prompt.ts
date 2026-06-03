@@ -8,3 +8,15 @@ export type Prompt = {
   template: string
   updated_at: string
 }
+
+export type PromptVersion = Prompt & {
+  id: number
+  enabled: number
+  created_at: string
+}
+
+export type PromptVersionCreate = {
+  template: string
+  name?: string
+  description?: string
+}
