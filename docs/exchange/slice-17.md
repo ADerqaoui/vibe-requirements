@@ -47,3 +47,6 @@ Verification run after fixes:
 
 ## User — decisions
 - [User — YYYY-MM-DD] decision — rationale
+
+## Claude — final conformance
+- [Claude — 2026-06-03] APPROVE — the registry is now genuinely useful: prompts are editable, versioned immutably, validated before they can break anything, and fully auditable. Immutable-version model is the right choice — it keeps every historical call_logs.prompt_id/prompt_version pointing at the exact text that produced it, which is the ISO-26262-friendly property this whole project benefits from. Save-time validation against the per-task variable contract closes the obvious foot-gun (saving a template that KeyErrors at render); the render-time ValueError/IndexError typing is correct defense-in-depth even though validation should prevent it. The Spec→child fix delivered through the versioning path (seeded v2, v1 preserved and promotable) is exactly how a behavior change should land now that we have versioning — auditable and reversible, not a silent edit. The type-error fix matters beyond this slice: it exposed that the QA loop never ran tsc, so type errors had been slipping since slice 15. pnpm build is now part of the permanent loop. Two good design concerns logged for later (prompt preview/test-run before promote; version diff view) — both correctly out of scope here. Clear to merge.
