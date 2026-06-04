@@ -54,3 +54,6 @@
 
 ## User — decisions
 - [User — YYYY-MM-DD] decision — rationale
+
+## Claude — final conformance
+- [Claude — 2026-06-04] APPROVE — the model half of "auto model+prompt selection" is done, mirroring the prompt registry's role for prompts. select_model's ranking is the right shape: exact tier first, nearest tier as graceful fallback, free-local preferred over paid (so the router naturally avoids cloud spend), deterministic id tie-break. Keeping the gateway path unchanged means the cost ceiling and call_logs audit remain authoritative over whatever the router picks — correct layering. Scoping classification + embeddings out is right (the 3-model vote isn't a single-model pick). The QA-round-1 reactivity bug was real and worth the block: a Settings toggle that needs a page reload to take effect is a footgun; lifting router_enabled to app-level shared state is the correct fix and reuses the slice-15 app-coordination precedent rather than inventing new machinery, and the App-level toggle-flow test now locks it. Two design concerns logged (routing-rationale visibility; global-vs-per-project router) — both correctly deferred. NeedList.tsx at 196 is the next extraction candidate. Round-2 BLOCK was GitHub cache only. Clear to merge.
