@@ -7,8 +7,11 @@ export function useRouterEnabled(onError: (error: unknown) => void) {
   useEffect(() => {
     fetchSettings()
       .then((settings) => setRouterEnabled(settings.router_enabled))
-      .catch(() => setRouterEnabled(false))
+      .catch((error: unknown) => {
+        onError(error)
+        setRouterEnabled(false)
+      })
   }, [onError])
 
-  return routerEnabled
+  return { routerEnabled, setRouterEnabled }
 }

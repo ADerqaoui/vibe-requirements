@@ -28,9 +28,6 @@ describe('GenerationPanel router mode', () => {
         if (path === '/api/models') {
           return jsonResponse([])
         }
-        if (path === '/api/settings') {
-          return jsonResponse({ settings: [], provider_keys: {}, router_enabled: true })
-        }
         if (path === '/api/layers/allowed-children?parent_kind=need') {
           return jsonResponse([systemRequirement])
         }
@@ -49,7 +46,7 @@ describe('GenerationPanel router mode', () => {
       }),
     )
 
-    render(<GenerationPanel rootNeedId={1} />)
+    render(<GenerationPanel rootNeedId={1} routerEnabled />)
 
     expect(await screen.findByText('Auto (router)')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Generate' }))

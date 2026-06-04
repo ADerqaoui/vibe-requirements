@@ -27,9 +27,15 @@ function settingValue(settings: Setting[], key: string): string {
 
 type SettingsPanelProps = {
   costRefreshSignal?: number
+  routerEnabled?: boolean
+  setRouterEnabled?: (enabled: boolean) => void
 }
 
-export function SettingsPanel({ costRefreshSignal = 0 }: SettingsPanelProps) {
+export function SettingsPanel({
+  costRefreshSignal = 0,
+  routerEnabled = false,
+  setRouterEnabled = () => {},
+}: SettingsPanelProps) {
   const [models, setModels] = useState<Model[]>([])
   const [settingsResponse, setSettingsResponse] = useState<SettingsResponse>({
     settings: [],
@@ -86,7 +92,7 @@ export function SettingsPanel({ costRefreshSignal = 0 }: SettingsPanelProps) {
     try {
       const response = await updateSettings(
         SETTING_KEYS.map((key) => ({ key, value: settingDrafts[key] ?? '' })),
-        settingsResponse.router_enabled,
+        routerEnabled,
       )
       setSettingsResponse(response)
       setError(null)
@@ -102,6 +108,7 @@ export function SettingsPanel({ costRefreshSignal = 0 }: SettingsPanelProps) {
         enabled,
       )
       setSettingsResponse(response)
+      setRouterEnabled(response.router_enabled)
       setError(null)
     } catch (updateError: unknown) {
       setError(toErrorMessage(updateError))
@@ -124,7 +131,7 @@ export function SettingsPanel({ costRefreshSignal = 0 }: SettingsPanelProps) {
           <CostPanel refreshSignal={costRefreshSignal} />
 
           <h3 className="mt-5 text-sm font-semibold text-neutral-900">Settings</h3>
-          <SettingsRouterToggle enabled={settingsResponse.router_enabled} onToggle={handleToggleRouter} />
+          <SettingsRouterToggle enabled={routerEnabled} onToggle={handleToggleRouter} />
           <SettingsFields
             onSaveSettings={handleSaveSettings}
             onSettingDraftsChange={setSettingDrafts}

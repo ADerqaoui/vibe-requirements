@@ -30,9 +30,6 @@ describe('SpecList router mode', () => {
         if (path === '/api/models') {
           return { ok: true, json: async () => [] } as Response
         }
-        if (path === '/api/settings') {
-          return { ok: true, json: async () => ({ settings: [], provider_keys: {}, router_enabled: true }) } as Response
-        }
         if (path === '/api/specs/4/inspect') {
           expect(String(init?.body)).toBe('{}')
           return {
@@ -53,7 +50,7 @@ describe('SpecList router mode', () => {
       }),
     )
 
-    render(<SpecList specs={specs} />)
+    render(<SpecList routerEnabled specs={specs} />)
 
     expect(await screen.findByText('Auto (router)')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Inspect' }))

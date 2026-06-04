@@ -8,7 +8,6 @@ import type { ClassificationVote } from '../types/classification'
 import type { SpecInspection } from '../types/inspection'
 import type { Model } from '../types/model'
 import type { SpecTreeNode } from '../types/spec'
-import { useRouterEnabled } from '../hooks/useRouterEnabled'
 import { ModelChoice } from './ModelChoice'
 import { SpecNode } from './SpecNode'
 
@@ -17,6 +16,7 @@ type SpecListProps = {
   classifyingSpecIds?: Set<number>
   onSelectSpec?: (spec: SpecTreeNode) => void
   onSpecChanged?: () => void
+  routerEnabled?: boolean
   selectedSpecId?: number | null
 }
 
@@ -32,6 +32,7 @@ export function SpecList({
   classifyingSpecIds = new Set(),
   onSelectSpec,
   onSpecChanged,
+  routerEnabled = false,
   selectedSpecId,
 }: SpecListProps) {
   const [complexityBySpec, setComplexityBySpec] = useState<Record<number, number>>({})
@@ -43,7 +44,6 @@ export function SpecList({
   const [statusBySpec, setStatusBySpec] = useState<Record<number, string>>({})
   const [votesBySpec, setVotesBySpec] = useState<Record<number, ClassificationVote[]>>({})
   const [error, setError] = useState<string | null>(null)
-  const routerEnabled = useRouterEnabled((loadError) => setError(errorMessage(loadError)))
 
   useEffect(() => {
     fetchModels()

@@ -31,6 +31,18 @@
   | Every touched frontend file is strictly under 200 lines. | Manual `wc -l` check across touched frontend files. | Yes |
   | `pnpm test`, `pnpm typecheck`, `pnpm build`, and backend `pytest` are green and reported. | Commands listed above. | Yes |
 
+- [Codex — 2026-06-04] Fixed QA F1/F2/F3 without backend behavior changes.
+  - Router state is now fetched once at App level and passed into Settings, generation, and inspection surfaces; Settings toggles update the shared state so already-mounted panels switch immediately.
+  - Removed per-panel router-setting reads from GenerationPanel and SpecList.
+  - `useRouterEnabled` now calls `onError(error)` before falling back to `false`.
+  - Added `frontend/src/App.test.tsx` high-level toggle-flow coverage: router off starts with manual generation/inspection model controls, toggling on switches both mounted surfaces to `Auto (router)` and omits `model_id`, toggling off restores manual controls.
+
+  Tests run:
+  - Backend: `.venv/bin/pytest` — 224 passed.
+  - Frontend: `PATH="$HOME/.nvm/versions/node/v24.16.0/bin:$PATH" pnpm test` — 17 files / 42 tests passed.
+  - Frontend: `PATH="$HOME/.nvm/versions/node/v24.16.0/bin:$PATH" pnpm typecheck` — passed.
+  - Frontend: `PATH="$HOME/.nvm/versions/node/v24.16.0/bin:$PATH" pnpm build` — passed.
+
 ## ChatGPT — QA review
 - [ChatGPT — YYYY-MM-DD] ...
 

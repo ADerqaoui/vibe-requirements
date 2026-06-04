@@ -4,7 +4,6 @@ import type { CostCeilingBannerState } from '../hooks/useCostCeilingError'
 import { useGenerationActions } from '../hooks/useGenerationActions'
 import { useGenerationModels } from '../hooks/useGenerationModels'
 import { useParentSpecTree } from '../hooks/useParentSpecTree'
-import { useRouterEnabled } from '../hooks/useRouterEnabled'
 import { parentFromNeedId, type GenerationParent } from '../types/generationParent'
 import type { SpecTreeNode } from '../types/spec'
 import { errorMessage } from '../utils/errorMessage'
@@ -20,6 +19,7 @@ type GenerationPanelProps = {
   parent?: GenerationParent | null
   onSelectSpec?: (spec: SpecTreeNode) => void
   onSuccessfulGeneration?: () => void
+  routerEnabled?: boolean
 }
 
 export function GenerationPanel({
@@ -28,6 +28,7 @@ export function GenerationPanel({
   parent,
   onSelectSpec,
   onSuccessfulGeneration,
+  routerEnabled = false,
 }: GenerationPanelProps) {
   const effectiveRootNeedId = rootNeedId ?? needId ?? null
   const generationParent = parent ?? parentFromNeedId(effectiveRootNeedId)
@@ -38,7 +39,6 @@ export function GenerationPanel({
   }, [])
   const { allowedLayers, selectedLayerId, setSelectedLayerId } = useAllowedChildLayers(generationParent, handleError)
   const { modelId, models, setModelId } = useGenerationModels(handleError)
-  const routerEnabled = useRouterEnabled(handleError)
   const { clearSpecTree, loadSpecTree, setSpecComplexity, specs } = useParentSpecTree()
   const {
     allCandidatesBlocked,
@@ -107,6 +107,7 @@ export function GenerationPanel({
         classifyingSpecIds={classifyingSpecIds}
         onSelectSpec={onSelectSpec}
         onSpecChanged={() => effectiveRootNeedId !== null && void loadSpecTree(effectiveRootNeedId)}
+        routerEnabled={routerEnabled}
         selectedSpecId={parent?.kind === 'spec' ? parent.id : null}
         specs={specs}
       />
