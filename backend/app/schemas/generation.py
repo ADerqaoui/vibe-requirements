@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field
 class GenerationRequest(BaseModel):
     """Need-to-Spec generation request."""
 
-    model_id: int
+    model_id: int | None = None
     count: int = Field(ge=1, le=10)
     target_layer_id: int | None = None
 
@@ -21,3 +21,5 @@ class GenerationResult(BaseModel):
     """Need-to-Spec generation result."""
 
     candidates: list[GenerationCandidate]
+    selected_model_id: int
+    selected_model_name: str

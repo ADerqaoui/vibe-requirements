@@ -17,10 +17,12 @@ from app.services.gateway_service import GatewayRuntime
 from app.services.inspector_service import (
     InspectorModelUnavailableError,
     SpecNotFoundError,
-    get_enabled_inspector_model,
     inspect_spec,
     list_spec_inspections,
+    resolve_inspector_model,
 )
+from app.services.model_service import get_model
+from app.services.router_service import RouterNoModelError, RouterTaskNotRoutedError
 
 router = APIRouter(tags=["inspections"])
 
@@ -35,8 +37,11 @@ async def inspect_spec_route(
     """Run and persist one single-model inspection."""
     _ensure_spec_exists(db, spec_id)
     try:
-        model = get_enabled_inspector_model(db, payload.model_id)
+        model = resolve_inspector_model(db, payload.model_id)
     except InspectorModelUnavailableError as error:
+        status_code = status.HTTP_400_BAD_REQUEST if str(error) == "Model is required" else status.HTTP_409_CONFLICT
+        raise HTTPException(status_code=status_code, detail=str(error)) from error
+    except (RouterNoModelError, RouterTaskNotRoutedError) as error:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(error)) from error
 
     settings = get_settings()
@@ -61,7 +66,7 @@ async def inspect_spec_route(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=f"Gateway failure: {error}",
         ) from error
-    return _inspection_out(row)
+    return _inspection_out(db, row)
 
 
 @router.get("/specs/{spec_id}/inspections", response_model=list[SpecInspectionOut])
@@ -71,17 +76,20 @@ async def list_spec_inspections_route(
 ) -> list[SpecInspectionOut]:
     """List persisted inspections newest-first."""
     try:
-        return [_inspection_out(row) for row in list_spec_inspections(db, spec_id)]
+        return [_inspection_out(db, row) for row in list_spec_inspections(db, spec_id)]
     except SpecNotFoundError as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Spec not found") from error
 
 
-def _inspection_out(row: SpecInspection) -> SpecInspectionOut:
+def _inspection_out(db: Session, row: SpecInspection) -> SpecInspectionOut:
     """Map a persisted inspection row to the API response."""
+    model = get_model(db, row.model_id)
     return SpecInspectionOut(
         id=row.id,
         spec_id=row.spec_id,
         model_id=row.model_id,
+        selected_model_id=row.model_id,
+        selected_model_name=model.name,
         findings=json.loads(row.findings),
         summary=row.summary,
         passes=row.passes,

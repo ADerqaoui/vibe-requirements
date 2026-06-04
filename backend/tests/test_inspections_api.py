@@ -123,8 +123,19 @@ async def test_inspection_api_persists_and_lists_newest_first(
 
     assert first.status_code == 200
     assert second.status_code == 200
-    assert set(first.json().keys()) == {"id", "spec_id", "model_id", "findings", "summary", "passes", "created_at"}
-    assert set(listed.json()[0].keys()) == {"id", "spec_id", "model_id", "findings", "summary", "passes", "created_at"}
+    response_keys = {
+        "id",
+        "spec_id",
+        "model_id",
+        "selected_model_id",
+        "selected_model_name",
+        "findings",
+        "summary",
+        "passes",
+        "created_at",
+    }
+    assert set(first.json().keys()) == response_keys
+    assert set(listed.json()[0].keys()) == response_keys
     assert second.json()["findings"]["criteria"][0]["note"] == "second"
     assert first.json()["summary"] == "Summary for first"
     assert listed.json()[0]["summary"] == first_row.summary
@@ -134,6 +145,40 @@ async def test_inspection_api_persists_and_lists_newest_first(
     prompt = db_session.query(Prompt).filter_by(task="inspect_spec", version=1).one()
     assert {log.prompt_id for log in logs} == {prompt.id}
     assert {log.prompt_version for log in logs} == {prompt.version}
+
+
+@pytest.mark.asyncio
+async def test_inspection_api_router_on_ignores_model_id_and_reports_selected_model(
+    api_app: FastAPI,
+    db_session: Session,
+) -> None:
+    """Router-on inspection can omit model_id and reports the selected model."""
+    spec_id, manual_model_id = seed_spec_and_model(db_session)
+    routed = Model(provider="ollama", name="high-router", ollama_tag="high-router", tier="high", enabled=1)
+    db_session.add_all([routed, Setting(key="router_enabled", value="true")])
+    db_session.commit()
+    use_db_session(api_app, db_session)
+    selected_ids: list[int] = []
+
+    async def override_gateway_factory():
+        def factory(model, _settings):
+            selected_ids.append(model.id)
+            return FakeGateway(GatewayResult(findings_text("router"), 5, 6))
+
+        return factory
+
+    api_app.dependency_overrides[get_gateway_factory] = override_gateway_factory
+
+    transport = ASGITransport(app=api_app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post(f"/api/specs/{spec_id}/inspect", json={})
+        ignored = await client.post(f"/api/specs/{spec_id}/inspect", json={"model_id": manual_model_id})
+
+    assert response.status_code == 200
+    assert response.json()["selected_model_id"] == routed.id
+    assert response.json()["selected_model_name"] == "high-router"
+    assert ignored.status_code == 200
+    assert selected_ids == [routed.id, routed.id]
 
 
 @pytest.mark.asyncio
@@ -154,11 +199,13 @@ async def test_inspection_api_missing_spec_and_model_conflicts(
             f"/api/specs/{spec_id}/inspect",
             json={"model_id": disabled_model_id},
         )
+        missing_required_model = await client.post(f"/api/specs/{spec_id}/inspect", json={})
 
     assert missing_spec.status_code == 404
     assert missing_list.status_code == 404
     assert missing_model.status_code == 409
     assert disabled_model.status_code == 409
+    assert missing_required_model.status_code == 400
 
 
 @pytest.mark.asyncio

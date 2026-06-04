@@ -10,6 +10,7 @@ import { NeedRow } from './NeedRow'
 type NeedListProps = {
   onSuccessfulGeneration?: () => void
   projectId: number | null
+  routerEnabled?: boolean
 }
 
 const EMPTY_DRAFT: NeedDraft = {
@@ -41,7 +42,7 @@ function payloadFromDraft(draft: NeedDraft): NeedPayload {
   }
 }
 
-export function NeedList({ onSuccessfulGeneration, projectId }: NeedListProps) {
+export function NeedList({ onSuccessfulGeneration, projectId, routerEnabled = false }: NeedListProps) {
   const [needs, setNeeds] = useState<Need[]>([])
   const [selectedNeedId, setSelectedNeedId] = useState<number | null>(null)
   const [selectedParent, setSelectedParent] = useState<GenerationParent | null>(null)
@@ -188,6 +189,7 @@ export function NeedList({ onSuccessfulGeneration, projectId }: NeedListProps) {
         onSelectSpec={selectSpec}
         parent={selectedParent}
         rootNeedId={selectedNeedId}
+        routerEnabled={routerEnabled}
       />
     </section>
   )

@@ -9,10 +9,17 @@ from app.models.model import Model
 from app.models.need import Need
 from app.models.project import Project
 from app.models.prompt import Prompt
+from app.models.setting import Setting
 from app.models.spec import Spec
 from app.services.blacklist_service import BlacklistService
 from app.services.embedding_service import EMBEDDING_DIMENSIONS
-from app.services.generation_service import GenerationRuntime, ParentKind, generate_for_parent
+from app.services.generation_service import (
+    GenerationModelUnavailableError,
+    GenerationRuntime,
+    ParentKind,
+    generate_for_parent,
+    resolve_generation_model,
+)
 from app.seed.run import seed_prompts, seed_reference_data
 
 
@@ -82,6 +89,24 @@ def target_layer_id(db_session: Session, parent_kind: ParentKind) -> int | None:
     if parent_kind == "need":
         return None
     return db_session.query(Layer).filter_by(name="System Architecture").one().id
+
+
+def test_resolve_generation_model_manual_requires_model_id(db_session: Session) -> None:
+    """Router-off generation requires a supplied model id."""
+    with pytest.raises(GenerationModelUnavailableError, match="Model is required"):
+        resolve_generation_model(db_session, "generate_need_to_spec", None)
+
+
+def test_resolve_generation_model_router_ignores_supplied_model_id(db_session: Session) -> None:
+    """Router-on generation selects by task and ignores manual input."""
+    manual = Model(provider="ollama", name="manual", ollama_tag="manual", tier="low", enabled=1)
+    routed = Model(provider="ollama", name="routed", ollama_tag="routed", tier="mid", enabled=1)
+    db_session.add_all([manual, routed, Setting(key="router_enabled", value="true")])
+    db_session.commit()
+
+    selected = resolve_generation_model(db_session, "generate_need_to_spec", manual.id)
+
+    assert selected.id == routed.id
 
 
 @pytest.mark.asyncio

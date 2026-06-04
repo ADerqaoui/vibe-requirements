@@ -15,6 +15,8 @@ export type SpecInspection = {
   id: number
   spec_id: number
   model_id: number
+  selected_model_id: number | null
+  selected_model_name: string | null
   findings: InspectionFindings
   passes: number
   created_at: string

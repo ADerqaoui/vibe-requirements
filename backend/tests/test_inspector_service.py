@@ -15,12 +15,14 @@ from app.models.project import Project
 from app.models.spec import Spec
 from app.models.spec_inspection import SpecInspection
 from app.models.prompt import Prompt
+from app.models.setting import Setting
 from app.seed.run import seed_prompts
 from app.services.gateway_service import GatewayRuntime
 from app.services.inspector_service import (
     InspectorModelUnavailableError,
     get_enabled_inspector_model,
     inspect_spec,
+    resolve_inspector_model,
 )
 
 
@@ -150,6 +152,24 @@ def test_inspector_service_rejects_missing_or_disabled_model_before_call(
         get_enabled_inspector_model(db_session, 999)
     with pytest.raises(InspectorModelUnavailableError, match="Model is disabled"):
         get_enabled_inspector_model(db_session, disabled_model.id)
+
+
+def test_resolve_inspector_model_router_ignores_supplied_model_id(db_session: Session) -> None:
+    """Router-on inspection selects high tier and ignores manual input."""
+    _spec_id, manual = seed_spec_and_model(db_session)
+    routed = Model(provider="ollama", name="high", ollama_tag="high", tier="high", enabled=1)
+    db_session.add_all([routed, Setting(key="router_enabled", value="true")])
+    db_session.commit()
+
+    selected = resolve_inspector_model(db_session, manual.id)
+
+    assert selected.id == routed.id
+
+
+def test_resolve_inspector_model_manual_requires_model_id(db_session: Session) -> None:
+    """Router-off inspection requires a supplied model id."""
+    with pytest.raises(InspectorModelUnavailableError, match="Model is required"):
+        resolve_inspector_model(db_session, None)
 
 
 @pytest.mark.asyncio

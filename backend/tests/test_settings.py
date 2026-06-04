@@ -39,6 +39,7 @@ async def test_settings_get_masks_provider_key_status(
         "openai": "not_configured",
         "deepseek": "configured",
     }
+    assert body["router_enabled"] is False
     assert "anthropic-secret" not in response.text
     assert "deepseek-secret" not in response.text
 
@@ -61,7 +62,8 @@ async def test_settings_put_updates_non_key_settings_only(
                     {"key": "router_default", "value": "on"},
                     {"key": "complexity_tier_map", "value": "1:low,2-3:mid,4-5:high"},
                     {"key": "cost_ceiling_sek", "value": "75"},
-                ]
+                ],
+                "router_enabled": True,
             },
         )
 
@@ -74,8 +76,10 @@ async def test_settings_put_updates_non_key_settings_only(
         "value": "1:low,2-3:mid,4-5:high",
     } in update_response.json()["settings"]
     assert {"key": "cost_ceiling_sek", "value": "75"} in update_response.json()["settings"]
+    assert update_response.json()["router_enabled"] is True
     assert ("fx_rate_usd_sek", "10.5") in db_keys
     assert ("router_default", "on") in db_keys
+    assert ("router_enabled", "true") in db_keys
 
 
 @pytest.mark.asyncio

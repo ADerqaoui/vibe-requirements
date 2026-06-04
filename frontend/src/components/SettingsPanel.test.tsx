@@ -31,6 +31,7 @@ const initialSettings: SettingsResponse = {
     openai: 'not_configured',
     deepseek: 'not_configured',
   },
+  router_enabled: false,
 }
 
 type ModelPayload = {
@@ -128,8 +129,12 @@ describe('SettingsPanel', () => {
         }
 
         if (path === '/api/settings' && method === 'PUT') {
-          const payload = JSON.parse(String(init?.body)) as { settings: Setting[] }
-          settings = { ...settings, settings: payload.settings }
+          const payload = JSON.parse(String(init?.body)) as { settings: Setting[]; router_enabled?: boolean }
+          settings = {
+            ...settings,
+            settings: payload.settings,
+            router_enabled: payload.router_enabled ?? settings.router_enabled,
+          }
           return jsonResponse(settings)
         }
 
@@ -171,6 +176,9 @@ describe('SettingsPanel', () => {
 
     fireEvent.change(screen.getByLabelText('fx_rate_usd_sek'), { target: { value: '10.5' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save settings' }))
+    expect(fetch).toHaveBeenCalledWith('/api/settings', expect.objectContaining({ method: 'PUT' }))
+
+    fireEvent.click(screen.getByRole('checkbox', { name: /Router/ }))
     expect(fetch).toHaveBeenCalledWith('/api/settings', expect.objectContaining({ method: 'PUT' }))
 
     fireEvent.click(within(modelRow('Custom GPT')).getByRole('button', { name: 'Remove' }))

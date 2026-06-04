@@ -10,11 +10,14 @@ export async function fetchSettings(): Promise<SettingsResponse> {
   return (await response.json()) as SettingsResponse
 }
 
-export async function updateSettings(settings: Setting[]): Promise<SettingsResponse> {
+export async function updateSettings(
+  settings: Setting[],
+  routerEnabled?: boolean,
+): Promise<SettingsResponse> {
   const response = await fetch(SETTINGS_PATH, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ settings }),
+    body: JSON.stringify({ settings, router_enabled: routerEnabled }),
   })
   if (!response.ok) {
     throw new Error(`Settings request failed: HTTP ${response.status}`)

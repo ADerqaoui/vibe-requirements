@@ -14,6 +14,7 @@ from app.models.spec_inspection import SpecInspection
 from app.services.model_service import ModelNotFoundError, get_model
 from app.services.gateway_service import GatewayRuntime, complete_model
 from app.services.prompt_service import render
+from app.services.router_service import is_router_enabled, select_model
 
 
 class SpecNotFoundError(Exception):
@@ -22,6 +23,15 @@ class SpecNotFoundError(Exception):
 
 class InspectorModelUnavailableError(Exception):
     """Raised when the requested inspection model is missing or disabled."""
+
+
+def resolve_inspector_model(db: Session, model_id: int | None) -> Model:
+    """Resolve the model for inspection, using router mode when enabled."""
+    if is_router_enabled(db):
+        return select_model(db, "inspect_spec")
+    if model_id is None:
+        raise InspectorModelUnavailableError("Model is required")
+    return get_enabled_inspector_model(db, model_id)
 
 
 def get_enabled_inspector_model(db: Session, model_id: int) -> Model:

@@ -19,6 +19,7 @@ type GenerationPanelProps = {
   parent?: GenerationParent | null
   onSelectSpec?: (spec: SpecTreeNode) => void
   onSuccessfulGeneration?: () => void
+  routerEnabled?: boolean
 }
 
 export function GenerationPanel({
@@ -27,6 +28,7 @@ export function GenerationPanel({
   parent,
   onSelectSpec,
   onSuccessfulGeneration,
+  routerEnabled = false,
 }: GenerationPanelProps) {
   const effectiveRootNeedId = rootNeedId ?? needId ?? null
   const generationParent = parent ?? parentFromNeedId(effectiveRootNeedId)
@@ -48,6 +50,7 @@ export function GenerationPanel({
     handleGenerate,
     handleReject,
     isGenerating,
+    selectedModelName,
     setCount,
   } = useGenerationActions({
     clearSpecTree,
@@ -56,6 +59,7 @@ export function GenerationPanel({
     loadSpecTree,
     modelId,
     onSuccessfulGeneration,
+    routerEnabled,
     selectedLayerId,
     setCeilingBanner,
     setError,
@@ -87,8 +91,10 @@ export function GenerationPanel({
         onGenerate={handleGenerate}
         onLayerChange={setSelectedLayerId}
         onModelIdChange={setModelId}
+        routerEnabled={routerEnabled}
         selectedLayerId={selectedLayerId}
       />
+      {selectedModelName && <p className="mt-2 text-sm text-neutral-600">Generated with: {selectedModelName}</p>}
 
       <GenerationCandidates candidates={candidates} onAccept={handleAccept} onReject={handleReject} />
       {allCandidatesBlocked && (
@@ -101,6 +107,7 @@ export function GenerationPanel({
         classifyingSpecIds={classifyingSpecIds}
         onSelectSpec={onSelectSpec}
         onSpecChanged={() => effectiveRootNeedId !== null && void loadSpecTree(effectiveRootNeedId)}
+        routerEnabled={routerEnabled}
         selectedSpecId={parent?.kind === 'spec' ? parent.id : null}
         specs={specs}
       />

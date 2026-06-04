@@ -169,4 +169,5 @@ describe('SpecList', () => {
     )
     expect(onSpecChanged).toHaveBeenCalled()
   })
+
 })

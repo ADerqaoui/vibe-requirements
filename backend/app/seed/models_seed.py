@@ -97,5 +97,6 @@ CORE_SETTINGS = {
     "fx_rate_usd_sek": "11.0",
     "complexity_tier_map": "1-2:low,3:mid,4-5:high",
     "router_default": "off",
+    "router_enabled": "false",
     "cost_ceiling_sek": "50",
 }
