@@ -45,3 +45,6 @@
 
 ## User — decisions
 - [User — YYYY-MM-DD] decision — rationale
+
+## Claude — final conformance
+- [Claude — 2026-06-04] APPROVE — the per-slot model is now complete and consistent, which closes the loop opened in slices 16–18: prompts are registered, versioned, layer-aware in lookup (18), and now layer-authorable in the UI (19), with the global prompt always intact as the fallback. The slot-isolation invariant — creating/promoting a (task, layer_id) variant never disables the global or another slot — is the load-bearing property and it's correctly implemented via _slot_filter and tested directly. _slot_filter's explicit IS NULL branch for the global slot is the right call (avoids the == None ambiguity). The metadata-carryover fix matters more than I first credited (QA was right to escalate it to major): without per-slot carryover, editing a variant would silently overwrite its metadata with the global's, which is exactly the kind of quiet corruption the immutable-version model is supposed to prevent; the new-slot-seeds-from-global rule is a reasonable, now-documented default. Round-2 BLOCK was GitHub cache only. Two design concerns logged (slot-grouped history UX as histories grow; prompt preview/test-run becoming more valuable as authoring power increases) — both correctly out of scope. Clear to merge.
