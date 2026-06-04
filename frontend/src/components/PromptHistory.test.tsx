@@ -22,6 +22,7 @@ describe('PromptHistory', () => {
         version: 2,
         enabled: 1,
         layer_id: null,
+        layer_name: null,
         discipline_scope: null,
         template: 'Parent specification: {parent_statement}',
         created_at: '2026-06-03 10:00:00',
@@ -35,6 +36,7 @@ describe('PromptHistory', () => {
         version: 1,
         enabled: 0,
         layer_id: null,
+        layer_name: null,
         discipline_scope: null,
         template: 'Need: {parent_statement}',
         created_at: '2026-06-02 10:00:00',
@@ -45,7 +47,7 @@ describe('PromptHistory', () => {
 
     render(<PromptHistory task="generate_spec_to_child" onClose={vi.fn()} onPromoted={onPromoted} />)
 
-    expect(await screen.findByText(/v2/)).toBeInTheDocument()
+    expect(await screen.findByText(/Global · v2/)).toBeInTheDocument()
     expect(screen.getByText('Need: {parent_statement}')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Promote' }))
 

@@ -12,6 +12,7 @@ class PromptRead(BaseModel):
     description: str | None
     version: int
     layer_id: int | None
+    layer_name: str | None = None
     discipline_scope: str | None
     template: str
     updated_at: str
@@ -21,6 +22,7 @@ class PromptVersionCreate(BaseModel):
     """Create a new immutable prompt version."""
 
     template: str
+    layer_id: int | None = None
     name: str | None = None
     description: str | None = None
 

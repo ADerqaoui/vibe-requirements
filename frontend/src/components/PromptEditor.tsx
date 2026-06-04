@@ -1,9 +1,13 @@
 import { FormEvent, useState } from 'react'
 import { createPromptVersion, PromptTemplateInvalidApiError } from '../api/prompts'
+import type { Layer } from '../types/layer'
 import type { Prompt } from '../types/prompt'
+import { LayerVariantPicker } from './LayerVariantPicker'
 
 type PromptEditorProps = {
   prompt: Prompt
+  mode?: 'edit' | 'add-layer'
+  layerOptions?: Layer[]
   onCancel: () => void
   onSaved: () => void
 }
@@ -15,20 +19,42 @@ function messageFor(error: unknown): string {
   return String(error)
 }
 
-export function PromptEditor({ prompt, onCancel, onSaved }: PromptEditorProps) {
+function scopeLabel(prompt: Prompt): string {
+  return prompt.layer_id === null ? 'Global' : prompt.layer_name ?? `Layer ${prompt.layer_id}`
+}
+
+export function PromptEditor({
+  prompt,
+  mode = 'edit',
+  layerOptions = [],
+  onCancel,
+  onSaved,
+}: PromptEditorProps) {
   const [template, setTemplate] = useState(prompt.template)
   const [name, setName] = useState(prompt.name)
   const [description, setDescription] = useState(prompt.description ?? '')
+  const [selectedLayerId, setSelectedLayerId] = useState<number | ''>(layerOptions[0]?.id ?? '')
   const [error, setError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    if (mode === 'add-layer' && selectedLayerId === '') {
+      setError('Choose a layer')
+      return
+    }
     setIsSaving(true)
     setError(null)
+    const targetLayerId = mode === 'add-layer' ? selectedLayerId : prompt.layer_id
+    if (targetLayerId === '') {
+      setError('Choose a layer')
+      setIsSaving(false)
+      return
+    }
     try {
       await createPromptVersion(prompt.task, {
         template,
+        layer_id: targetLayerId,
         name: name.trim() || undefined,
         description: description.trim() || undefined,
       })
@@ -62,6 +88,11 @@ export function PromptEditor({ prompt, onCancel, onSaved }: PromptEditorProps) {
           onChange={(event) => setDescription(event.target.value)}
         />
       </label>
+      {mode === 'add-layer' ? (
+        <LayerVariantPicker layers={layerOptions} value={selectedLayerId} onChange={setSelectedLayerId} />
+      ) : (
+        <p className="text-xs text-neutral-600">Scope: {scopeLabel(prompt)}</p>
+      )}
       <label className="block text-xs font-medium text-neutral-700">
         Template
         <textarea

@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
+import { fetchLayers } from '../api/layers'
 import { fetchPrompts } from '../api/prompts'
+import type { Layer } from '../types/layer'
 import type { Prompt } from '../types/prompt'
-import { PromptEditor } from './PromptEditor'
-import { PromptHistory } from './PromptHistory'
+import { PromptTaskGroup } from './PromptTaskGroup'
 
 function toErrorMessage(error: unknown): string {
   if (error instanceof Error) {
@@ -11,24 +12,30 @@ function toErrorMessage(error: unknown): string {
   return String(error)
 }
 
-function scopeText(value: string | number | null): string {
-  return value === null ? 'any' : String(value)
+function groupByTask(prompts: Prompt[]): Map<string, Prompt[]> {
+  const groups = new Map<string, Prompt[]>()
+  prompts.forEach((prompt) => {
+    groups.set(prompt.task, [...(groups.get(prompt.task) ?? []), prompt])
+  })
+  return groups
 }
 
 export function PromptsPanel() {
   const [prompts, setPrompts] = useState<Prompt[]>([])
+  const [layers, setLayers] = useState<Layer[]>([])
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const [editingTask, setEditingTask] = useState<string | null>(null)
-  const [historyTask, setHistoryTask] = useState<string | null>(null)
+  const [editingKey, setEditingKey] = useState<string | null>(null)
+  const [historyKey, setHistoryKey] = useState<string | null>(null)
 
   async function loadPrompts(shouldCancel: () => boolean = () => false) {
     try {
-      const loadedPrompts = await fetchPrompts()
+      const [loadedPrompts, loadedLayers] = await Promise.all([fetchPrompts(), fetchLayers()])
       if (shouldCancel()) {
         return
       }
       setPrompts(loadedPrompts)
+      setLayers(loadedLayers)
       setError(null)
     } catch (loadError: unknown) {
       if (!shouldCancel()) {
@@ -52,8 +59,11 @@ export function PromptsPanel() {
   async function refreshAfterChange() {
     setIsLoading(true)
     await loadPrompts()
-    setEditingTask(null)
+    setEditingKey(null)
+    setHistoryKey(null)
   }
+
+  const groups = groupByTask(prompts)
 
   return (
     <section className="mt-5 rounded-md border border-neutral-200 bg-white p-3">
@@ -61,58 +71,20 @@ export function PromptsPanel() {
       {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
       {isLoading ? <p className="mt-2 text-sm text-neutral-500">Loading prompts...</p> : null}
       <ul className="mt-3 space-y-2">
-        {prompts.map((prompt) => (
-          <li className="rounded-md border border-neutral-200 p-3" key={prompt.task}>
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <p className="text-sm font-medium text-neutral-950">{prompt.name}</p>
-                <p className="text-xs text-neutral-500">
-                  {prompt.task} · v{prompt.version} · layer {scopeText(prompt.layer_id)} · discipline{' '}
-                  {scopeText(prompt.discipline_scope)}
-                </p>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <p className="text-xs text-neutral-500">Updated {prompt.updated_at}</p>
-                <button
-                  className="rounded border border-neutral-300 px-2 py-1 text-xs"
-                  onClick={() => setEditingTask(prompt.task)}
-                  type="button"
-                >
-                  Edit
-                </button>
-                <button
-                  className="rounded border border-neutral-300 px-2 py-1 text-xs"
-                  onClick={() => setHistoryTask(prompt.task)}
-                  type="button"
-                >
-                  History
-                </button>
-              </div>
-            </div>
-            {prompt.description && <p className="mt-2 text-sm text-neutral-600">{prompt.description}</p>}
-            <details className="mt-2">
-              <summary className="cursor-pointer text-xs font-medium text-neutral-700">
-                Template
-              </summary>
-              <pre className="mt-2 max-h-56 overflow-auto rounded bg-neutral-50 p-3 text-xs text-neutral-800">
-                {prompt.template}
-              </pre>
-            </details>
-            {editingTask === prompt.task ? (
-              <PromptEditor
-                prompt={prompt}
-                onCancel={() => setEditingTask(null)}
-                onSaved={() => void refreshAfterChange()}
-              />
-            ) : null}
-            {historyTask === prompt.task ? (
-              <PromptHistory
-                task={prompt.task}
-                onClose={() => setHistoryTask(null)}
-                onPromoted={() => void refreshAfterChange()}
-              />
-            ) : null}
-          </li>
+        {[...groups.entries()].map(([task, taskPrompts]) => (
+          <PromptTaskGroup
+            key={task}
+            task={task}
+            prompts={taskPrompts}
+            layers={layers}
+            editingKey={editingKey}
+            historyKey={historyKey}
+            onEdit={setEditingKey}
+            onHistory={setHistoryKey}
+            onCancelEdit={() => setEditingKey(null)}
+            onCloseHistory={() => setHistoryKey(null)}
+            onChanged={() => void refreshAfterChange()}
+          />
         ))}
       </ul>
     </section>
