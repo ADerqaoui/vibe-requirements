@@ -29,6 +29,10 @@
   | Old `call_logs` rows still reference valid unchanged versions; immutability holds. | Versioning only inserts new `Prompt` rows and tests promote/create without mutating historical rows: `backend/tests/test_prompt_slot_versioning.py`; existing prompt/call-log service coverage remains green. | Yes |
   | Every touched frontend file strictly under 200 lines. | Manual `wc -l` check across touched frontend files. | Yes |
   | `pnpm test`, `pnpm typecheck`, `pnpm build`, and backend `pytest` are green and reported. | Commands listed above. | Yes |
+- [Codex — 2026-06-04] Resolves QA F1+F2 and the open question — existing slot carries metadata from itself; a brand-new layer slot seeds metadata from the global active by design (documented).
+  - Added `_active_in_slot(db, task, layer_id)` and made `create_version` carry omitted `name`/`description` from the exact slot when present.
+  - Added service/API regression tests for layer-slot metadata carryover and brand-new-slot global seeding.
+  - Tests run: `.venv/bin/pytest` — 212 passed; `PATH="$HOME/.nvm/versions/node/v24.16.0/bin:$PATH" pnpm test` — 13 files / 37 tests passed; `PATH="$HOME/.nvm/versions/node/v24.16.0/bin:$PATH" pnpm typecheck` — passed; `PATH="$HOME/.nvm/versions/node/v24.16.0/bin:$PATH" pnpm build` — passed.
 
 ## ChatGPT — QA review
 - [ChatGPT — YYYY-MM-DD] ...

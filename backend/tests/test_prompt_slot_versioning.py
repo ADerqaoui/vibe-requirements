@@ -82,6 +82,56 @@ def test_layer_slot_creation_and_promote_do_not_disable_global_or_other_slots(
     ]
 
 
+def test_existing_layer_slot_carries_metadata_from_slot(db_session: Session) -> None:
+    """Editing an existing layer slot preserves that slot's metadata."""
+    layer = add_layer(db_session, "Layer X", 10)
+    db_session.add(
+        Prompt(
+            task="classify_spec",
+            name="Global",
+            description="Global description",
+            version=1,
+            enabled=1,
+            template="Global {spec_statement}",
+        )
+    )
+    db_session.commit()
+    create_version(
+        db_session,
+        "classify_spec",
+        "Layer v1 {spec_statement}",
+        layer_id=layer.id,
+        name="X-specific",
+        description="X description",
+    )
+
+    created = create_version(db_session, "classify_spec", "Layer v2 {spec_statement}", layer_id=layer.id)
+
+    assert created.name == "X-specific"
+    assert created.description == "X description"
+
+
+def test_new_layer_slot_seeds_metadata_from_global(db_session: Session) -> None:
+    """Creating a brand-new layer slot defaults metadata from the global slot."""
+    layer = add_layer(db_session, "Layer Y", 20)
+    db_session.add(
+        Prompt(
+            task="classify_spec",
+            name="Global",
+            description="Global description",
+            version=1,
+            enabled=1,
+            template="Global {spec_statement}",
+        )
+    )
+    db_session.commit()
+
+    created = create_version(db_session, "classify_spec", "Layer y {spec_statement}", layer_id=layer.id)
+
+    assert created.name == "Global"
+    assert created.description == "Global description"
+
+
 def test_list_active_returns_one_enabled_row_per_slot_in_layer_order(db_session: Session) -> None:
     """Active prompt listing includes global first, then layer slots."""
     later_layer = add_layer(db_session, "Later", 20)

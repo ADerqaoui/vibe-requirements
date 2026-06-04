@@ -89,3 +89,40 @@ async def test_create_prompt_version_api_rejects_invalid_layers(
     assert need.status_code == 422
     assert need.json()["error"] == "prompt_layer_invalid"
     assert "Need layer" in need.json()["reason"]
+
+
+@pytest.mark.asyncio
+async def test_create_prompt_version_api_preserves_existing_layer_metadata(
+    api_app: FastAPI,
+    db_session: Session,
+) -> None:
+    """POST with layer_id and omitted metadata carries from that layer slot."""
+    seed_reference_data(db_session)
+    seed_prompts(db_session)
+    use_db_session(api_app, db_session)
+    target_layer_id = layer_id(db_session, "System Requirement")
+
+    transport = ASGITransport(app=api_app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        first = await client.post(
+            "/api/prompts/classify_spec/versions",
+            json={
+                "template": "Layer score {spec_statement}",
+                "layer_id": target_layer_id,
+                "name": "X-specific",
+                "description": "Layer-specific description",
+            },
+        )
+        second = await client.post(
+            "/api/prompts/classify_spec/versions",
+            json={
+                "template": "Layer score v2 {spec_statement}",
+                "layer_id": target_layer_id,
+            },
+        )
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    body = second.json()
+    assert body["name"] == "X-specific"
+    assert body["description"] == "Layer-specific description"

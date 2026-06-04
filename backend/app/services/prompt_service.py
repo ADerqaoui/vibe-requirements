@@ -123,13 +123,15 @@ def create_version(
     description: str | None = None,
 ) -> Prompt:
     """Insert a new active immutable version for an existing task/layer slot."""
-    current = get_active(db, task)
+    slot_active = _active_in_slot(db, task, layer_id)
+    # A brand-new layer slot starts from the global active prompt's metadata by design.
+    source = slot_active if slot_active is not None else get_active(db, task)
     validate_template(task, template)
     next_version = _next_version(db, task, layer_id)
     prompt = Prompt(
         task=task,
-        name=name if name is not None else current.name,
-        description=description if description is not None else current.description,
+        name=name if name is not None else source.name,
+        description=description if description is not None else source.description,
         layer_id=layer_id,
         discipline_scope=None,
         version=next_version,
@@ -169,6 +171,15 @@ def _next_version(db: Session, task: str, layer_id: int | None) -> int:
     return int(max_version or 0) + 1
 
 
+def _active_in_slot(db: Session, task: str, layer_id: int | None) -> Prompt | None:
+    """Return the enabled prompt in the exact task/layer slot."""
+    return db.scalar(
+        select(Prompt)
+        .where(_slot_filter(task, layer_id), Prompt.enabled == 1)
+        .order_by(desc(Prompt.version), desc(Prompt.id))
+        .limit(1)
+    )
+
 def _slot_filter(task: str, layer_id: int | None):
     """Return the task/layer slot predicate."""
     if layer_id is None:
@@ -182,9 +193,7 @@ def _specificity_score(
     discipline_scope: str | None,
 ) -> int:
     """Score layer/discipline prompt specificity."""
-    score = 0
-    if prompt.layer_id is not None and prompt.layer_id == layer_id:
-        score += 2
-    if prompt.discipline_scope is not None and prompt.discipline_scope == discipline_scope:
-        score += 1
-    return score
+    layer_score = 2 if prompt.layer_id is not None and prompt.layer_id == layer_id else 0
+    discipline_match = prompt.discipline_scope is not None and prompt.discipline_scope == discipline_scope
+    discipline_score = 1 if discipline_match else 0
+    return layer_score + discipline_score
