@@ -15,6 +15,10 @@ function toMessage(error: unknown): string {
   return String(error)
 }
 
+function scopeLabel(version: PromptVersion): string {
+  return version.layer_id === null ? 'Global' : version.layer_name ?? `Layer ${version.layer_id}`
+}
+
 export function PromptHistory({ task, onClose, onPromoted }: PromptHistoryProps) {
   const [versions, setVersions] = useState<PromptVersion[]>([])
   const [error, setError] = useState<string | null>(null)
@@ -61,7 +65,7 @@ export function PromptHistory({ task, onClose, onPromoted }: PromptHistoryProps)
           <li className="rounded border border-neutral-200 p-2" key={version.id}>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <p className="text-sm text-neutral-800">
-                v{version.version}{' '}
+                {scopeLabel(version)} · v{version.version}{' '}
                 {version.enabled ? <span className="text-xs font-medium text-green-700">Active</span> : null}
               </p>
               {!version.enabled ? (

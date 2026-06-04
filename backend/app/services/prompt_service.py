@@ -1,10 +1,11 @@
 """DB-backed prompt lookup and rendering."""
 from dataclasses import dataclass
 
-from sqlalchemy import desc, func, or_, select, update
+from sqlalchemy import and_, case, desc, func, or_, select, update
 from sqlalchemy.orm import Session
 
 from app.models.prompt import Prompt
+from app.models.layer import Layer
 from app.services.prompt_errors import (
     PromptNotFoundError,
     PromptRenderError,
@@ -72,25 +73,40 @@ def render(
 
 
 def list_active(db: Session) -> list[Prompt]:
-    """Return one active prompt per task in stable task order."""
+    """Return one active prompt per task/layer slot in stable order."""
     prompts = db.scalars(
         select(Prompt)
+        .outerjoin(Layer, Layer.id == Prompt.layer_id)
         .where(Prompt.enabled == 1)
-        .order_by(Prompt.task, desc(Prompt.version), desc(Prompt.id))
+        .order_by(
+            Prompt.task,
+            case((Prompt.layer_id.is_(None), 0), else_=1),
+            Layer.sort_order,
+            Prompt.layer_id,
+            desc(Prompt.version),
+            desc(Prompt.id),
+        )
     ).all()
-    active_by_task: dict[str, Prompt] = {}
+    active_by_slot: dict[tuple[str, int | None], Prompt] = {}
     for prompt in prompts:
-        active_by_task.setdefault(prompt.task, prompt)
-    return list(active_by_task.values())
+        active_by_slot.setdefault((prompt.task, prompt.layer_id), prompt)
+    return list(active_by_slot.values())
 
 
 def list_versions(db: Session, task: str) -> list[Prompt]:
-    """Return all prompt versions for one task, newest first."""
+    """Return all prompt versions for one task, grouped by slot."""
     prompts = list(
         db.scalars(
             select(Prompt)
+            .outerjoin(Layer, Layer.id == Prompt.layer_id)
             .where(Prompt.task == task)
-            .order_by(desc(Prompt.version), desc(Prompt.id))
+            .order_by(
+                case((Prompt.layer_id.is_(None), 0), else_=1),
+                Layer.sort_order,
+                Prompt.layer_id,
+                desc(Prompt.version),
+                desc(Prompt.id),
+            )
         ).all()
     )
     if not prompts:
@@ -102,25 +118,26 @@ def create_version(
     db: Session,
     task: str,
     template: str,
+    layer_id: int | None = None,
     name: str | None = None,
     description: str | None = None,
 ) -> Prompt:
-    """Insert a new active immutable version for an existing task."""
+    """Insert a new active immutable version for an existing task/layer slot."""
     current = get_active(db, task)
     validate_template(task, template)
-    next_version = _next_version(db, task)
+    next_version = _next_version(db, task, layer_id)
     prompt = Prompt(
         task=task,
         name=name if name is not None else current.name,
         description=description if description is not None else current.description,
-        layer_id=current.layer_id,
-        discipline_scope=current.discipline_scope,
+        layer_id=layer_id,
+        discipline_scope=None,
         version=next_version,
         enabled=1,
         template=template,
     )
     try:
-        db.execute(update(Prompt).where(Prompt.task == task).values(enabled=0))
+        db.execute(update(Prompt).where(_slot_filter(task, layer_id)).values(enabled=0))
         db.add(prompt)
         db.commit()
         db.refresh(prompt)
@@ -131,12 +148,12 @@ def create_version(
 
 
 def promote(db: Session, prompt_id: int) -> Prompt:
-    """Promote a historical prompt version and disable its siblings."""
+    """Promote a historical prompt version and disable its slot siblings."""
     prompt = db.get(Prompt, prompt_id)
     if prompt is None:
         raise PromptNotFoundError(str(prompt_id))
     try:
-        db.execute(update(Prompt).where(Prompt.task == prompt.task).values(enabled=0))
+        db.execute(update(Prompt).where(_slot_filter(prompt.task, prompt.layer_id)).values(enabled=0))
         prompt.enabled = 1
         db.commit()
         db.refresh(prompt)
@@ -146,10 +163,17 @@ def promote(db: Session, prompt_id: int) -> Prompt:
     return prompt
 
 
-def _next_version(db: Session, task: str) -> int:
-    """Return one more than the current maximum version for a task."""
-    max_version = db.scalar(select(func.max(Prompt.version)).where(Prompt.task == task))
+def _next_version(db: Session, task: str, layer_id: int | None) -> int:
+    """Return one more than the current maximum version for a slot."""
+    max_version = db.scalar(select(func.max(Prompt.version)).where(_slot_filter(task, layer_id)))
     return int(max_version or 0) + 1
+
+
+def _slot_filter(task: str, layer_id: int | None):
+    """Return the task/layer slot predicate."""
+    if layer_id is None:
+        return and_(Prompt.task == task, Prompt.layer_id.is_(None))
+    return and_(Prompt.task == task, Prompt.layer_id == layer_id)
 
 
 def _specificity_score(

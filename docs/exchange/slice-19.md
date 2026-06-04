@@ -9,11 +9,26 @@
 > to the User, who commits it.
 
 ## Codex — handoff & notes
-- [Codex — YYYY-MM-DD] <what was built, tests run + results, deviations>
-<!-- Include an acceptance-to-test mapping in your handoff:
-| Acceptance criterion | Test | Covered? |
-| --- | --- | --- |
--->
+- [Codex — 2026-06-04] Implemented slice 19 schema-free.
+  - Backend prompt versioning is now per-slot `(task, layer_id)`: `create_version` and `promote` only disable siblings in the same slot, `create_version(..., layer_id=...)` starts layer slots at v1, `discipline_scope` remains NULL for authored prompts, and `get_active` was left unchanged.
+  - Prompt API accepts `layer_id`, rejects unknown layers and the root `Need` layer with 422, returns one active row per slot, and includes `layer_id`/`layer_name` in active and history responses.
+  - Frontend groups prompts by task, labels `Global` versus layer variants, supports add-layer variant via `/api/layers` excluding `Need`, preserves scope read-only on edit, and posts `layer_id`.
+  - Touched frontend files are all under 200 lines.
+
+  Tests run:
+  - Backend: `.venv/bin/pytest` — 209 passed.
+  - Frontend: `PATH="$HOME/.nvm/versions/node/v24.16.0/bin:$PATH" pnpm test` — 13 files / 37 tests passed.
+  - Frontend: `PATH="$HOME/.nvm/versions/node/v24.16.0/bin:$PATH" pnpm typecheck` — passed.
+  - Frontend: `PATH="$HOME/.nvm/versions/node/v24.16.0/bin:$PATH" pnpm build` — passed.
+
+  | Acceptance criterion | Test | Covered? |
+  | --- | --- | --- |
+  | A user can add a layer-specific variant of any task's prompt from Settings; it coexists with the global prompt. | `frontend/src/components/PromptsPanel.test.tsx::adds a layer variant with a layer picker and layer_id payload`; `backend/tests/test_prompt_slot_versioning.py::test_layer_slot_creation_and_promote_do_not_disable_global_or_other_slots` | Yes |
+  | Generating at that layer uses the layer-specific prompt; other layers and no-layer path use global. | Existing `backend/tests/test_prompt_layer_lookup.py::test_get_active_prefers_layer_specific_prompt_and_falls_back`; reinforced by slot isolation test. | Yes |
+  | The Prompts panel makes Global vs layer-specific prompts unambiguous. | `frontend/src/components/PromptsPanel.test.tsx::renders active prompts with version and template content`; `frontend/src/components/PromptHistory.test.tsx::lists versions and promotes inactive history` | Yes |
+  | Old `call_logs` rows still reference valid unchanged versions; immutability holds. | Versioning only inserts new `Prompt` rows and tests promote/create without mutating historical rows: `backend/tests/test_prompt_slot_versioning.py`; existing prompt/call-log service coverage remains green. | Yes |
+  | Every touched frontend file strictly under 200 lines. | Manual `wc -l` check across touched frontend files. | Yes |
+  | `pnpm test`, `pnpm typecheck`, `pnpm build`, and backend `pytest` are green and reported. | Commands listed above. | Yes |
 
 ## ChatGPT — QA review
 - [ChatGPT — YYYY-MM-DD] ...

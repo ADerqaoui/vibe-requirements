@@ -9,6 +9,7 @@ const prompt: Prompt = {
   description: 'Classify',
   version: 1,
   layer_id: null,
+  layer_name: null,
   discipline_scope: null,
   template: 'Specification: {spec_statement}',
   updated_at: '2026-06-03 10:00:00',
@@ -38,6 +39,7 @@ describe('PromptEditor', () => {
     await waitFor(() => expect(onSaved).toHaveBeenCalled())
     expect(fetch).toHaveBeenCalledWith('/api/prompts/classify_spec/versions', expect.objectContaining({
       method: 'POST',
+      body: expect.stringContaining('"layer_id":null'),
     }))
   })
 
@@ -51,5 +53,35 @@ describe('PromptEditor', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
     expect(await screen.findByText('missing variables')).toBeInTheDocument()
+  })
+
+  it('shows a layer picker for new variants and posts the selected layer', async () => {
+    const onSaved = vi.fn()
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(200, { id: 3, ...prompt, version: 1 })))
+
+    render(
+      <PromptEditor
+        prompt={prompt}
+        mode="add-layer"
+        layerOptions={[{ id: 2, name: 'System Requirement', kind: 'cross_cutting', discipline: null, sort_order: 10 }]}
+        onCancel={vi.fn()}
+        onSaved={onSaved}
+      />,
+    )
+
+    fireEvent.change(screen.getByLabelText('Layer'), { target: { value: '2' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => expect(onSaved).toHaveBeenCalled())
+    expect(fetch).toHaveBeenCalledWith('/api/prompts/classify_spec/versions', expect.objectContaining({
+      body: expect.stringContaining('"layer_id":2'),
+    }))
+  })
+
+  it('shows existing scope as read-only while editing', () => {
+    render(<PromptEditor prompt={{ ...prompt, layer_id: 2, layer_name: 'System Requirement' }} onCancel={vi.fn()} onSaved={vi.fn()} />)
+
+    expect(screen.getByText('Scope: System Requirement')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Layer')).not.toBeInTheDocument()
   })
 })
