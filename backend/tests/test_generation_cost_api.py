@@ -70,6 +70,7 @@ async def test_generation_api_cost_ceiling_returns_402(
         need,
         model,
         Setting(key="cost_ceiling_sek", value="4"),
+        Setting(key="router_enabled", value="true"),
         CallLog(task="manual", provider="openai", cost_sek=5, status="success"),
     ])
     db_session.flush()
@@ -88,7 +89,7 @@ async def test_generation_api_cost_ceiling_returns_402(
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         response = await client.post(
             f"/api/needs/{need_id}/generate",
-            json={"model_id": model_id, "count": 1},
+            json={"count": 1},
         )
 
     assert response.status_code == 402

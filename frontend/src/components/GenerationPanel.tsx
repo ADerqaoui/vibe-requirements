@@ -4,6 +4,7 @@ import type { CostCeilingBannerState } from '../hooks/useCostCeilingError'
 import { useGenerationActions } from '../hooks/useGenerationActions'
 import { useGenerationModels } from '../hooks/useGenerationModels'
 import { useParentSpecTree } from '../hooks/useParentSpecTree'
+import { useRouterEnabled } from '../hooks/useRouterEnabled'
 import { parentFromNeedId, type GenerationParent } from '../types/generationParent'
 import type { SpecTreeNode } from '../types/spec'
 import { errorMessage } from '../utils/errorMessage'
@@ -37,6 +38,7 @@ export function GenerationPanel({
   }, [])
   const { allowedLayers, selectedLayerId, setSelectedLayerId } = useAllowedChildLayers(generationParent, handleError)
   const { modelId, models, setModelId } = useGenerationModels(handleError)
+  const routerEnabled = useRouterEnabled(handleError)
   const { clearSpecTree, loadSpecTree, setSpecComplexity, specs } = useParentSpecTree()
   const {
     allCandidatesBlocked,
@@ -48,6 +50,7 @@ export function GenerationPanel({
     handleGenerate,
     handleReject,
     isGenerating,
+    selectedModelName,
     setCount,
   } = useGenerationActions({
     clearSpecTree,
@@ -56,6 +59,7 @@ export function GenerationPanel({
     loadSpecTree,
     modelId,
     onSuccessfulGeneration,
+    routerEnabled,
     selectedLayerId,
     setCeilingBanner,
     setError,
@@ -87,8 +91,10 @@ export function GenerationPanel({
         onGenerate={handleGenerate}
         onLayerChange={setSelectedLayerId}
         onModelIdChange={setModelId}
+        routerEnabled={routerEnabled}
         selectedLayerId={selectedLayerId}
       />
+      {selectedModelName && <p className="mt-2 text-sm text-neutral-600">Generated with: {selectedModelName}</p>}
 
       <GenerationCandidates candidates={candidates} onAccept={handleAccept} onReject={handleReject} />
       {allCandidatesBlocked && (

@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from app.config import Settings
 from app.models.setting import Setting
 from app.schemas.setting import ALLOWED_SETTING_KEYS, SettingRead
+from app.services.router_service import ROUTER_ENABLED_KEY
 
 PROVIDERS = ("anthropic", "openai", "deepseek")
 
@@ -32,6 +33,17 @@ def update_settings(db: Session, setting_values: list[SettingRead]) -> list[Sett
         setting.value = setting_value.value
     db.commit()
     return [SettingRead(key=row.key, value=row.value) for row in db.scalars(select(Setting).order_by(Setting.key))]
+
+
+def update_router_enabled(db: Session, enabled: bool) -> None:
+    """Persist the global router toggle."""
+    setting = db.get(Setting, ROUTER_ENABLED_KEY)
+    value = "true" if enabled else "false"
+    if setting is None:
+        db.add(Setting(key=ROUTER_ENABLED_KEY, value=value))
+    else:
+        setting.value = value
+    db.commit()
 
 
 def _key_status(value: str) -> str:

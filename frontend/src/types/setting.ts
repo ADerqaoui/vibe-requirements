@@ -6,4 +6,5 @@ export type Setting = {
 export type SettingsResponse = {
   settings: Setting[]
   provider_keys: Record<string, 'configured' | 'not_configured'>
+  router_enabled: boolean
 }

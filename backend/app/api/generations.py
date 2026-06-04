@@ -16,13 +16,15 @@ from app.schemas.generation import GenerationRequest, GenerationResult
 from app.services.blacklist_service import BlacklistService
 from app.services.embedding_service import EmbeddingError
 from app.services.generation_service import (
+    GenerationModelUnavailableError,
     GenerationParentNotFoundError,
     GenerationRuntime,
     ParentKind,
     generate_for_parent,
+    resolve_generation_model,
 )
 from app.services.layer_service import LayerNotAllowedForParentError, TargetLayerRequiredError
-from app.services.model_service import ModelNotFoundError, get_model
+from app.services.router_service import RouterNoModelError, RouterTaskNotRoutedError
 
 router = APIRouter(tags=["generations"])
 
@@ -76,12 +78,14 @@ async def _generate_specs_for_parent(
     """Generate child spec candidates for either parent route."""
     settings = get_settings()
     _ensure_parent_exists(db, parent_kind, parent_id)
+    task = "generate_need_to_spec" if parent_kind == "need" else "generate_spec_to_child"
     try:
-        model = get_model(db, payload.model_id)
-    except ModelNotFoundError as error:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Model not found") from error
-    if not bool(model.enabled):
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Model is disabled")
+        model = resolve_generation_model(db, task, payload.model_id)
+    except GenerationModelUnavailableError as error:
+        status_code = status.HTTP_400_BAD_REQUEST if str(error) == "Model is required" else status.HTTP_409_CONFLICT
+        raise HTTPException(status_code=status_code, detail=str(error)) from error
+    except (RouterNoModelError, RouterTaskNotRoutedError) as error:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(error)) from error
 
     try:
         gateway = gateway_factory(model, settings)

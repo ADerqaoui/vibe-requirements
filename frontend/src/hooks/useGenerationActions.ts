@@ -17,6 +17,7 @@ type UseGenerationActionsParams = {
   loadSpecTree: (needId: number) => Promise<void>
   modelId: number | null
   onSuccessfulGeneration?: () => void
+  routerEnabled: boolean
   selectedLayerId: number | null
   setCeilingBanner: Dispatch<SetStateAction<CostCeilingBannerState>>
   setError: Dispatch<SetStateAction<string | null>>
@@ -33,6 +34,7 @@ type UseGenerationActionsResult = {
   handleGenerate: (event: FormEvent<HTMLFormElement>) => Promise<void>
   handleReject: (candidate: GenerationCandidate) => Promise<void>
   isGenerating: boolean
+  selectedModelName: string | null
   setCount: (count: number) => void
 }
 
@@ -43,6 +45,7 @@ export function useGenerationActions({
   loadSpecTree,
   modelId,
   onSuccessfulGeneration,
+  routerEnabled,
   selectedLayerId,
   setCeilingBanner,
   setError,
@@ -53,6 +56,7 @@ export function useGenerationActions({
   const [candidates, setCandidates] = useState<GenerationCandidate[]>([])
   const [allCandidatesBlocked, setAllCandidatesBlocked] = useState(false)
   const [isGenerating, setIsGenerating] = useState(false)
+  const [selectedModelName, setSelectedModelName] = useState<string | null>(null)
   const handleCostCeilingError = useCostCeilingError({ setCeilingBanner, setError })
   const { blacklistCount, loadBlacklistCount } = useParentBlacklist()
   const { addClassifyingSpecId, classifyingSpecIds, removeClassifyingSpecId } = useClassifyingSpecs()
@@ -65,6 +69,7 @@ export function useGenerationActions({
     clearSpecTree()
     setCandidates([])
     setAllCandidatesBlocked(false)
+    setSelectedModelName(null)
     setCeilingBanner(null)
     if (effectiveRootNeedId !== null) {
       loadSpecTree(effectiveRootNeedId)
@@ -85,10 +90,14 @@ export function useGenerationActions({
 
   async function handleGenerate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (generationParent === null || modelId === null || selectedLayerId === null) {
+    if (generationParent === null || (!routerEnabled && modelId === null) || selectedLayerId === null) {
       return
     }
-    const payload = { model_id: modelId, count, target_layer_id: selectedLayerId }
+    const payload = {
+      ...(routerEnabled ? {} : { model_id: modelId ?? undefined }),
+      count,
+      target_layer_id: selectedLayerId,
+    }
     setIsGenerating(true)
     setAllCandidatesBlocked(false)
     try {
@@ -97,6 +106,7 @@ export function useGenerationActions({
           ? await generateSpecs(generationParent.id, payload)
           : await generateChildSpecs(generationParent.id, payload)
       setCandidates(result.candidates)
+      setSelectedModelName(result.selected_model_name)
       setAllCandidatesBlocked(result.candidates.length === 0)
       setCeilingBanner(null)
       setError(null)
@@ -176,6 +186,7 @@ export function useGenerationActions({
     handleGenerate,
     handleReject,
     isGenerating,
+    selectedModelName,
     setCount,
   }
 }

@@ -13,7 +13,9 @@ from app.schemas.generation import GenerationCandidate, GenerationResult
 from app.services.blacklist_service import BlacklistService
 from app.services.gateway_service import GatewayRuntime, complete_model
 from app.services.layer_service import resolve_target_layer_for_need, resolve_target_layer_for_spec
+from app.services.model_service import ModelNotFoundError, get_model
 from app.services.prompt_service import render
+from app.services.router_service import is_router_enabled, select_model
 
 ParentKind = Literal["need", "spec"]
 
@@ -28,6 +30,25 @@ class GenerationRuntime:
 
 class GenerationParentNotFoundError(Exception):
     """Raised when a generation parent does not exist."""
+
+
+class GenerationModelUnavailableError(Exception):
+    """Raised when generation cannot resolve an enabled model."""
+
+
+def resolve_generation_model(db: Session, task: str, model_id: int | None) -> Model:
+    """Resolve the model for generation, using router mode when enabled."""
+    if is_router_enabled(db):
+        return select_model(db, task)
+    if model_id is None:
+        raise GenerationModelUnavailableError("Model is required")
+    try:
+        model = get_model(db, model_id)
+    except ModelNotFoundError as error:
+        raise GenerationModelUnavailableError("Model not found") from error
+    if not bool(model.enabled):
+        raise GenerationModelUnavailableError("Model is disabled")
+    return model
 
 
 async def generate_for_parent(
@@ -87,7 +108,9 @@ async def generate_for_parent(
         candidates=[
             GenerationCandidate(index=index + 1, statement=statement)
             for index, statement in enumerate(statements)
-        ]
+        ],
+        selected_model_id=model.id,
+        selected_model_name=model.name,
     )
 
 

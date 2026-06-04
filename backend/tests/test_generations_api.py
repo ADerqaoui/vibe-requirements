@@ -14,6 +14,7 @@ from app.models.model import Model
 from app.models.need import Need
 from app.models.project import Project
 from app.models.prompt import Prompt
+from app.models.setting import Setting
 from app.seed.run import seed_prompts, seed_reference_data
 
 
@@ -101,6 +102,45 @@ async def test_generation_api_returns_candidates_and_logs(
     assert log.prompt_version == prompt.version
 
 
+@pytest.mark.asyncio
+async def test_generation_api_router_on_ignores_model_id_and_reports_selected_model(
+    api_app: FastAPI,
+    db_session: Session,
+) -> None:
+    """Router-on generation can omit model_id and reports the selected model."""
+    need_id, manual_model_id = seed_need_and_model(db_session)
+    routed_model = Model(provider="ollama", name="routed-mid", ollama_tag="routed-mid", tier="mid", enabled=1)
+    manual_model = db_session.get(Model, manual_model_id)
+    assert manual_model is not None
+    manual_model.tier = "low"
+    db_session.add_all([routed_model, Setting(key="router_enabled", value="true")])
+    db_session.commit()
+    use_db_session(api_app, db_session)
+    selected_ids: list[int] = []
+
+    async def override_gateway_factory():
+        def factory(model, _settings):
+            selected_ids.append(model.id)
+            return FakeGateway(GatewayResult("1. Brake", 5, 6))
+
+        return factory
+
+    api_app.dependency_overrides[get_gateway_factory] = override_gateway_factory
+    transport = ASGITransport(app=api_app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post(f"/api/needs/{need_id}/generate", json={"count": 1})
+        ignored = await client.post(
+            f"/api/needs/{need_id}/generate",
+            json={"model_id": manual_model_id, "count": 1},
+        )
+
+    assert response.status_code == 200
+    assert response.json()["selected_model_id"] == routed_model.id
+    assert response.json()["selected_model_name"] == "routed-mid"
+    assert ignored.status_code == 200
+    assert selected_ids == [routed_model.id, routed_model.id]
+
+
 
 
 @pytest.mark.asyncio
@@ -126,6 +166,10 @@ async def test_generation_api_missing_need_model_disabled_and_count(
             f"/api/needs/{need_id}/generate",
             json={"model_id": disabled_model_id, "count": 1},
         )
+        missing_required_model = await client.post(
+            f"/api/needs/{need_id}/generate",
+            json={"count": 1},
+        )
         invalid_count = await client.post(
             f"/api/needs/{need_id}/generate",
             json={"model_id": disabled_model_id, "count": 11},
@@ -134,6 +178,7 @@ async def test_generation_api_missing_need_model_disabled_and_count(
     assert missing_need.status_code == 404
     assert missing_model.status_code == 409
     assert disabled_model.status_code == 409
+    assert missing_required_model.status_code == 400
     assert invalid_count.status_code == 422
 
 

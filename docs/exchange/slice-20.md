@@ -9,11 +9,27 @@
 > to the User, who commits it.
 
 ## Codex — handoff & notes
-- [Codex — YYYY-MM-DD] <what was built, tests run + results, deviations>
-<!-- Include an acceptance-to-test mapping in your handoff:
-| Acceptance criterion | Test | Covered? |
-| --- | --- | --- |
--->
+- [Codex — 2026-06-04] Implemented slice 20 schema-free.
+  - Added `router_enabled` setting support and `router_service.select_model` with deterministic tier-distance/free-first/cheapest/id ranking.
+  - Generation and inspection now accept optional `model_id`; router-on mode ignores supplied IDs and selects automatically, while router-off mode still requires a manual model.
+  - Generation and inspection responses include `selected_model_id` and `selected_model_name`; gateway calls still use `complete_model`, so cost ceiling and call-log audit remain authoritative.
+  - Frontend Settings includes the Router toggle, generation and inspection use `ModelChoice`, router mode omits `model_id`, and successful calls show the selected model.
+  - Touched frontend files are under 200 lines.
+
+  Tests run:
+  - Backend: `.venv/bin/pytest` — 224 passed.
+  - Frontend: `PATH="$HOME/.nvm/versions/node/v24.16.0/bin:$PATH" pnpm test` — 16 files / 41 tests passed.
+  - Frontend: `PATH="$HOME/.nvm/versions/node/v24.16.0/bin:$PATH" pnpm typecheck` — passed.
+  - Frontend: `PATH="$HOME/.nvm/versions/node/v24.16.0/bin:$PATH" pnpm build` — passed.
+
+  | Acceptance criterion | Test | Covered? |
+  | --- | --- | --- |
+  | With `router_enabled` off, manual model pick is required and behavior is unchanged. | `backend/tests/test_generation_service.py::test_resolve_generation_model_manual_requires_model_id`; `backend/tests/test_inspector_service.py::test_resolve_inspector_model_manual_requires_model_id`; existing generation/inspection API tests. | Yes |
+  | With router on, generate/inspect require no model pick; selected model is tier-appropriate, free-first, and shown in UI. | `backend/tests/test_router_service.py`; `backend/tests/test_generations_api.py::test_generation_api_router_on_ignores_model_id_and_reports_selected_model`; `backend/tests/test_inspections_api.py::test_inspection_api_router_on_ignores_model_id_and_reports_selected_model`; `frontend/src/components/GenerationPanelRouter.test.tsx`; `frontend/src/components/SpecListRouter.test.tsx`. | Yes |
+  | Router-selected paid cloud models still obey the slice-15 cost ceiling. | `backend/tests/test_generation_cost_api.py::test_generation_api_cost_ceiling_returns_402`; existing gateway/inspection cost-ceiling tests. | Yes |
+  | Selection is deterministic and covers tier match, free-first, cheapest, fallback, no-models, and unrouted-task errors. | `backend/tests/test_router_service.py`. | Yes |
+  | Every touched frontend file is strictly under 200 lines. | Manual `wc -l` check across touched frontend files. | Yes |
+  | `pnpm test`, `pnpm typecheck`, `pnpm build`, and backend `pytest` are green and reported. | Commands listed above. | Yes |
 
 ## ChatGPT — QA review
 - [ChatGPT — YYYY-MM-DD] ...
