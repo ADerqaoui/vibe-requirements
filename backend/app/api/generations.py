@@ -24,7 +24,9 @@ from app.services.generation_service import (
     resolve_generation_model,
 )
 from app.services.layer_service import LayerNotAllowedForParentError, TargetLayerRequiredError
+from app.services.prompt_errors import PromptDisabledError, PromptNotFoundError
 from app.services.router_service import RouterNoModelError, RouterTaskNotRoutedError
+from app.services.router_service import is_router_enabled
 
 router = APIRouter(tags=["generations"])
 
@@ -101,6 +103,7 @@ async def _generate_specs_for_parent(
                 timeout_seconds=_timeout_for_provider(model.provider, settings),
             ),
             target_layer_id=payload.target_layer_id,
+            prompt_id=None if is_router_enabled(db) else payload.prompt_id,
             blacklist_service=blacklist_service,
         )
     except GenerationParentNotFoundError as error:
@@ -122,6 +125,10 @@ async def _generate_specs_for_parent(
                 "allowed_layer_ids": error.allowed_layer_ids,
             },
         )
+    except PromptNotFoundError as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Prompt not found") from error
+    except PromptDisabledError as error:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Prompt is disabled") from error
     except CostCeilingExceededError as error:
         return cost_ceiling_response(error)
     except GatewayError as error:

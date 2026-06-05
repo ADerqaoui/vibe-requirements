@@ -1,4 +1,4 @@
-import type { Prompt, PromptVersion, PromptVersionCreate } from '../types/prompt'
+import type { Prompt, PromptDefaultSet, PromptVariant, PromptVersion, PromptVersionCreate } from '../types/prompt'
 
 const PROMPTS_PATH = '/api/prompts'
 
@@ -28,6 +28,15 @@ export async function fetchPromptVersions(task: string): Promise<PromptVersion[]
   return (await response.json()) as PromptVersion[]
 }
 
+export async function fetchPromptVariants(task: string, layerId?: number | null): Promise<PromptVariant[]> {
+  const query = layerId === undefined || layerId === null ? '' : `?layer_id=${layerId}`
+  const response = await fetch(`${PROMPTS_PATH}/${encodeURIComponent(task)}/variants${query}`)
+  if (!response.ok) {
+    throw new Error(`Prompt variants request failed: HTTP ${response.status}`)
+  }
+  return (await response.json()) as PromptVariant[]
+}
+
 export async function createPromptVersion(
   task: string,
   payload: PromptVersionCreate,
@@ -53,4 +62,16 @@ export async function promotePromptVersion(promptId: number): Promise<PromptVers
     throw new Error(`Prompt promote failed: HTTP ${response.status}`)
   }
   return (await response.json()) as PromptVersion
+}
+
+export async function setPromptDefault(payload: PromptDefaultSet): Promise<PromptDefaultSet> {
+  const response = await fetch(`${PROMPTS_PATH}/set-default`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  if (!response.ok) {
+    throw new Error(`Prompt default request failed: HTTP ${response.status}`)
+  }
+  return (await response.json()) as PromptDefaultSet
 }

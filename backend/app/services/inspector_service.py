@@ -13,7 +13,8 @@ from app.models.spec import Spec
 from app.models.spec_inspection import SpecInspection
 from app.services.model_service import ModelNotFoundError, get_model
 from app.services.gateway_service import GatewayRuntime, complete_model
-from app.services.prompt_service import render
+from app.services.prompt_selection import PromptSelectionContext
+from app.services.prompt_service import render_prompt, select_prompt
 from app.services.router_service import is_router_enabled, select_model
 
 
@@ -51,12 +52,19 @@ async def inspect_spec(
     model: Model,
     gateway: Gateway,
     runtime: GatewayRuntime,
+    prompt_id: int | None = None,
 ) -> SpecInspection:
     """Run one inspection and persist the parsed findings."""
     spec = db.get(Spec, spec_id)
     if spec is None:
         raise SpecNotFoundError
-    prompt = render(db, "inspect_spec", layer_id=spec.layer_id, spec_statement=spec.text)
+    selected_prompt = select_prompt(
+        db,
+        "inspect_spec",
+        layer_id=spec.layer_id,
+        context=PromptSelectionContext(prompt_id=prompt_id, parent_kind="spec", parent_id=spec_id, layer_id=spec.layer_id),
+    )
+    prompt = render_prompt(selected_prompt, spec_statement=spec.text)
     try:
         completion = await complete_model(
             db=db,
@@ -84,6 +92,8 @@ async def inspect_spec(
     db.add(row)
     db.commit()
     db.refresh(row)
+    row.selected_prompt_id = prompt.prompt_id
+    row.selected_prompt_name = prompt.prompt_name
     return row
 
 

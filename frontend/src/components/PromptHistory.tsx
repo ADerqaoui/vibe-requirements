@@ -4,6 +4,8 @@ import type { PromptVersion } from '../types/prompt'
 
 type PromptHistoryProps = {
   task: string
+  layerId: number | null
+  name: string
   onClose: () => void
   onPromoted: () => void
 }
@@ -19,7 +21,7 @@ function scopeLabel(version: PromptVersion): string {
   return version.layer_id === null ? 'Global' : version.layer_name ?? `Layer ${version.layer_id}`
 }
 
-export function PromptHistory({ task, onClose, onPromoted }: PromptHistoryProps) {
+export function PromptHistory({ task, layerId, name, onClose, onPromoted }: PromptHistoryProps) {
   const [versions, setVersions] = useState<PromptVersion[]>([])
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -27,7 +29,8 @@ export function PromptHistory({ task, onClose, onPromoted }: PromptHistoryProps)
   async function loadVersions() {
     setIsLoading(true)
     try {
-      setVersions(await fetchPromptVersions(task))
+      const rows = await fetchPromptVersions(task)
+      setVersions(rows.filter((row) => row.layer_id === layerId && row.name === name))
       setError(null)
     } catch (loadError: unknown) {
       setError(toMessage(loadError))
@@ -38,7 +41,7 @@ export function PromptHistory({ task, onClose, onPromoted }: PromptHistoryProps)
 
   useEffect(() => {
     void loadVersions()
-  }, [task])
+  }, [task, layerId, name])
 
   async function handlePromote(promptId: number) {
     try {

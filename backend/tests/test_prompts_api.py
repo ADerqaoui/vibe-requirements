@@ -82,7 +82,7 @@ async def test_create_prompt_version_api_success(
 
     assert response.status_code == 200
     body = response.json()
-    assert body["version"] == 2
+    assert body["version"] == 1
     assert body["enabled"] == 1
     assert body["name"] == "Score Spec"
 
@@ -142,3 +142,37 @@ async def test_promote_prompt_api_success_and_unknown_404(
     assert response.json()["version"] == 1
     assert response.json()["enabled"] == 1
     assert missing_response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_prompt_variants_api_lists_creates_and_sets_default(
+    api_app: FastAPI,
+    db_session: Session,
+) -> None:
+    """Variant endpoints expose defaults and allow creating new variants."""
+    seed_prompts(db_session)
+    use_db_session(api_app, db_session)
+
+    transport = ASGITransport(app=api_app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        create_response = await client.post(
+            "/api/prompts/classify_spec/versions",
+            json={"template": "EARS {spec_statement}", "name": "EARS"},
+        )
+        variants_response = await client.get("/api/prompts/classify_spec/variants")
+        default_response = await client.post(
+            "/api/prompts/set-default",
+            json={"task": "classify_spec", "layer_id": None, "name": "EARS"},
+        )
+        after_response = await client.get("/api/prompts/classify_spec/variants")
+        missing_response = await client.post(
+            "/api/prompts/set-default",
+            json={"task": "classify_spec", "layer_id": None, "name": "Missing"},
+        )
+
+    assert create_response.status_code == 200
+    assert variants_response.status_code == 200
+    assert default_response.status_code == 200
+    assert missing_response.status_code == 404
+    assert {item["name"] for item in variants_response.json()} == {"Classify Spec", "EARS"}
+    assert [item for item in after_response.json() if item["is_default"]][0]["name"] == "EARS"

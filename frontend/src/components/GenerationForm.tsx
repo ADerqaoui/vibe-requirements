@@ -1,8 +1,10 @@
 import type { FormEvent } from 'react'
 import type { Layer } from '../types/layer'
 import type { Model } from '../types/model'
+import type { PromptVariant } from '../types/prompt'
 import { LayerSelect } from './LayerSelect'
 import { ModelChoice } from './ModelChoice'
+import { PromptVariantSelect } from './PromptVariantSelect'
 
 type GenerationFormProps = {
   allowedLayers: Layer[]
@@ -10,10 +12,13 @@ type GenerationFormProps = {
   isGenerating: boolean
   modelId: number | null
   models: Model[]
+  promptId: number | null
+  promptVariants: PromptVariant[]
   onCountChange: (count: number) => void
   onGenerate: (event: FormEvent<HTMLFormElement>) => void
   onLayerChange: (layerId: number) => void
   onModelIdChange: (modelId: number) => void
+  onPromptIdChange: (promptId: number) => void
   routerEnabled: boolean
   selectedLayerId: number | null
 }
@@ -24,10 +29,13 @@ export function GenerationForm({
   isGenerating,
   modelId,
   models,
+  promptId,
+  promptVariants,
   onCountChange,
   onGenerate,
   onLayerChange,
   onModelIdChange,
+  onPromptIdChange,
   routerEnabled,
   selectedLayerId,
 }: GenerationFormProps) {
@@ -45,6 +53,14 @@ export function GenerationForm({
         layers={allowedLayers}
         onLayerChange={onLayerChange}
         selectedLayerId={selectedLayerId}
+      />
+      <PromptVariantSelect
+        ariaLabel="Generation prompt"
+        label="Prompt"
+        onPromptIdChange={onPromptIdChange}
+        promptId={promptId}
+        routerEnabled={routerEnabled}
+        variants={promptVariants}
       />
       <label className="grid gap-1 text-xs font-medium text-neutral-600">
         Count

@@ -33,3 +33,21 @@ class PromptVersionRead(PromptRead):
     id: int
     enabled: int
     created_at: str
+
+
+class PromptVariantRead(BaseModel):
+    """Enabled prompt variant response."""
+
+    name: str
+    version: int
+    template: str
+    is_default: bool
+    prompt_id: int
+
+
+class PromptDefaultSet(BaseModel):
+    """Set a task/layer default variant."""
+
+    task: str
+    layer_id: int | None = None
+    name: str

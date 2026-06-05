@@ -17,6 +17,7 @@ type UseGenerationActionsParams = {
   loadSpecTree: (needId: number) => Promise<void>
   modelId: number | null
   onSuccessfulGeneration?: () => void
+  promptId: number | null
   routerEnabled: boolean
   selectedLayerId: number | null
   setCeilingBanner: Dispatch<SetStateAction<CostCeilingBannerState>>
@@ -35,6 +36,7 @@ type UseGenerationActionsResult = {
   handleReject: (candidate: GenerationCandidate) => Promise<void>
   isGenerating: boolean
   selectedModelName: string | null
+  selectedPromptName: string | null
   setCount: (count: number) => void
 }
 
@@ -45,6 +47,7 @@ export function useGenerationActions({
   loadSpecTree,
   modelId,
   onSuccessfulGeneration,
+  promptId,
   routerEnabled,
   selectedLayerId,
   setCeilingBanner,
@@ -57,6 +60,7 @@ export function useGenerationActions({
   const [allCandidatesBlocked, setAllCandidatesBlocked] = useState(false)
   const [isGenerating, setIsGenerating] = useState(false)
   const [selectedModelName, setSelectedModelName] = useState<string | null>(null)
+  const [selectedPromptName, setSelectedPromptName] = useState<string | null>(null)
   const handleCostCeilingError = useCostCeilingError({ setCeilingBanner, setError })
   const { blacklistCount, loadBlacklistCount } = useParentBlacklist()
   const { addClassifyingSpecId, classifyingSpecIds, removeClassifyingSpecId } = useClassifyingSpecs()
@@ -70,6 +74,7 @@ export function useGenerationActions({
     setCandidates([])
     setAllCandidatesBlocked(false)
     setSelectedModelName(null)
+    setSelectedPromptName(null)
     setCeilingBanner(null)
     if (effectiveRootNeedId !== null) {
       loadSpecTree(effectiveRootNeedId)
@@ -87,7 +92,6 @@ export function useGenerationActions({
     loadSpecTree,
     selectedParentKey,
   ])
-
   async function handleGenerate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (generationParent === null || (!routerEnabled && modelId === null) || selectedLayerId === null) {
@@ -95,6 +99,7 @@ export function useGenerationActions({
     }
     const payload = {
       ...(routerEnabled ? {} : { model_id: modelId ?? undefined }),
+      ...(routerEnabled ? {} : { prompt_id: promptId ?? undefined }),
       count,
       target_layer_id: selectedLayerId,
     }
@@ -107,6 +112,7 @@ export function useGenerationActions({
           : await generateChildSpecs(generationParent.id, payload)
       setCandidates(result.candidates)
       setSelectedModelName(result.selected_model_name)
+      setSelectedPromptName(result.selected_prompt_name)
       setAllCandidatesBlocked(result.candidates.length === 0)
       setCeilingBanner(null)
       setError(null)
@@ -187,6 +193,7 @@ export function useGenerationActions({
     handleReject,
     isGenerating,
     selectedModelName,
+    selectedPromptName,
     setCount,
   }
 }

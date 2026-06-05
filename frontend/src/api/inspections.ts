@@ -1,11 +1,19 @@
 import { parseApiError } from './errors'
 import type { SpecInspection } from '../types/inspection'
 
-export async function inspectSpec(specId: number, modelId?: number): Promise<SpecInspection> {
+export async function inspectSpec(
+  specId: number,
+  modelId?: number,
+  promptId?: number,
+): Promise<SpecInspection> {
+  const payload = {
+    ...(modelId === undefined ? {} : { model_id: modelId }),
+    ...(promptId === undefined ? {} : { prompt_id: promptId }),
+  }
   const response = await fetch(`/api/specs/${specId}/inspect`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(modelId === undefined ? {} : { model_id: modelId }),
+    body: JSON.stringify(payload),
   })
   if (!response.ok) {
     throw await parseApiError(response, `Inspection request failed: HTTP ${response.status}`)

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { classifySpec } from '../api/classification'
 import { decideSpec, type SpecDecision } from '../api/decisions'
 import { CostCeilingError, costCeilingMessage } from '../api/errors'
@@ -8,7 +8,9 @@ import type { ClassificationVote } from '../types/classification'
 import type { SpecInspection } from '../types/inspection'
 import type { Model } from '../types/model'
 import type { SpecTreeNode } from '../types/spec'
+import { usePromptVariants } from '../hooks/usePromptVariants'
 import { ModelChoice } from './ModelChoice'
+import { PromptVariantSelect } from './PromptVariantSelect'
 import { SpecNode } from './SpecNode'
 
 type SpecListProps = {
@@ -44,6 +46,10 @@ export function SpecList({
   const [statusBySpec, setStatusBySpec] = useState<Record<number, string>>({})
   const [votesBySpec, setVotesBySpec] = useState<Record<number, ClassificationVote[]>>({})
   const [error, setError] = useState<string | null>(null)
+  const handlePromptVariantError = useCallback((loadError: unknown) => {
+    setError(errorMessage(loadError))
+  }, [])
+  const promptVariants = usePromptVariants('inspect_spec', null, handlePromptVariantError)
 
   useEffect(() => {
     fetchModels()
@@ -76,7 +82,11 @@ export function SpecList({
     }
     setLoadingInspectionId(spec.id)
     try {
-      const inspection = await inspectSpec(spec.id, routerEnabled ? undefined : modelId ?? undefined)
+      const inspection = await inspectSpec(
+        spec.id,
+        routerEnabled ? undefined : modelId ?? undefined,
+        routerEnabled ? undefined : promptVariants.promptId ?? undefined,
+      )
       setInspectionBySpec((currentValues) => ({ ...currentValues, [spec.id]: inspection }))
       setError(null)
     } catch (inspectError: unknown) {
@@ -112,6 +122,16 @@ export function SpecList({
           models={models}
           onModelIdChange={setModelId}
           routerEnabled={routerEnabled}
+        />
+      </div>
+      <div className="mt-2 max-w-xs">
+        <PromptVariantSelect
+          ariaLabel="Inspection prompt"
+          label="Inspection prompt"
+          onPromptIdChange={promptVariants.setPromptId}
+          promptId={promptVariants.promptId}
+          routerEnabled={routerEnabled}
+          variants={promptVariants.variants}
         />
       </div>
       <ul className="mt-2 space-y-2">

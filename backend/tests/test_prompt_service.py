@@ -6,12 +6,23 @@ from app.models.prompt import Prompt
 from sqlalchemy import select
 
 from app.services.prompt_errors import (
+    PromptDisabledError,
     PromptNotFoundError,
     PromptRenderError,
     PromptTemplateInvalidError,
     PromptVariableMissingError,
 )
-from app.services.prompt_service import create_version, get_active, promote, render
+from app.services.prompt_selection import PromptSelectionContext
+from app.services.prompt_service import (
+    _next_version,
+    create_version,
+    get_active,
+    get_default_variant_name,
+    promote,
+    render,
+    select_prompt,
+    set_default,
+)
 
 
 def test_get_active_returns_highest_enabled_version(db_session: Session) -> None:
@@ -112,8 +123,8 @@ def test_create_version_unknown_task_raises(db_session: Session) -> None:
 
 def test_promote_flips_enabled_across_siblings(db_session: Session) -> None:
     """Promote makes exactly the selected version active."""
-    older = Prompt(task="classify_spec", name="v1", version=1, enabled=0, template="{spec_statement}")
-    newer = Prompt(task="classify_spec", name="v2", version=2, enabled=1, template="New {spec_statement}")
+    older = Prompt(task="classify_spec", name="Classify", version=1, enabled=0, template="{spec_statement}")
+    newer = Prompt(task="classify_spec", name="Classify", version=2, enabled=1, template="New {spec_statement}")
     db_session.add_all([older, newer])
     db_session.commit()
 
@@ -150,3 +161,59 @@ def test_render_value_error_raises_render_error(db_session: Session) -> None:
 
     with pytest.raises(PromptRenderError):
         render(db_session, "task", name="Ada")
+
+
+def test_variant_isolation_for_create_promote_and_next_version(db_session: Session) -> None:
+    """Versioning and promote are scoped to one named variant."""
+    concise = Prompt(task="classify_spec", name="Concise", version=1, enabled=1, template="{spec_statement}")
+    ears = Prompt(task="classify_spec", name="EARS", version=1, enabled=1, template="EARS {spec_statement}")
+    old_ears = Prompt(task="classify_spec", name="EARS", version=0, enabled=0, template="Old {spec_statement}")
+    db_session.add_all([concise, ears, old_ears])
+    db_session.commit()
+
+    created = create_version(db_session, "classify_spec", "New EARS {spec_statement}", name="EARS")
+    promoted = promote(db_session, old_ears.id)
+
+    rows = db_session.scalars(select(Prompt).where(Prompt.task == "classify_spec").order_by(Prompt.name, Prompt.version)).all()
+    assert created.version == 2
+    assert promoted.id == old_ears.id
+    assert _next_version(db_session, "classify_spec", None, "EARS") == 3
+    assert [(row.name, row.version, row.enabled) for row in rows] == [
+        ("Concise", 1, 1),
+        ("EARS", 0, 1),
+        ("EARS", 1, 0),
+        ("EARS", 2, 0),
+    ]
+
+
+def test_default_variant_controls_get_active_with_fallback(db_session: Session) -> None:
+    """Default settings select one variant; unset fallback is deterministic."""
+    concise = Prompt(task="task", name="Concise", version=1, enabled=1, template="concise")
+    ears = Prompt(task="task", name="EARS", version=2, enabled=1, template="ears")
+    db_session.add_all([concise, ears])
+    db_session.commit()
+
+    assert get_default_variant_name(db_session, "task", None) == "EARS"
+    assert get_active(db_session, "task").name == "EARS"
+
+    set_default(db_session, "task", None, "Concise")
+
+    assert get_default_variant_name(db_session, "task", None) == "Concise"
+    assert get_active(db_session, "task").template == "concise"
+
+
+def test_select_prompt_uses_explicit_or_default_and_rejects_bad_ids(db_session: Session) -> None:
+    """Prompt selection honors explicit enabled rows and default fallback."""
+    default = Prompt(task="task", name="Default", version=1, enabled=1, template="default")
+    explicit = Prompt(task="task", name="Explicit", version=1, enabled=1, template="explicit")
+    disabled = Prompt(task="task", name="Disabled", version=1, enabled=0, template="disabled")
+    db_session.add_all([default, explicit, disabled])
+    db_session.commit()
+    set_default(db_session, "task", None, "Default")
+
+    assert select_prompt(db_session, "task", None, PromptSelectionContext()).id == default.id
+    assert select_prompt(db_session, "task", None, PromptSelectionContext(prompt_id=explicit.id)).id == explicit.id
+    with pytest.raises(PromptNotFoundError):
+        select_prompt(db_session, "task", None, PromptSelectionContext(prompt_id=404))
+    with pytest.raises(PromptDisabledError):
+        select_prompt(db_session, "task", None, PromptSelectionContext(prompt_id=disabled.id))

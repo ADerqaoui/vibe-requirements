@@ -6,7 +6,7 @@ import { LayerVariantPicker } from './LayerVariantPicker'
 
 type PromptEditorProps = {
   prompt: Prompt
-  mode?: 'edit' | 'add-layer'
+  mode?: 'edit' | 'add-layer' | 'add-variant'
   layerOptions?: Layer[]
   onCancel: () => void
   onSaved: () => void
@@ -31,7 +31,7 @@ export function PromptEditor({
   onSaved,
 }: PromptEditorProps) {
   const [template, setTemplate] = useState(prompt.template)
-  const [name, setName] = useState(prompt.name)
+  const [name, setName] = useState(mode === 'add-variant' ? '' : prompt.name)
   const [description, setDescription] = useState(prompt.description ?? '')
   const [selectedLayerId, setSelectedLayerId] = useState<number | ''>(layerOptions[0]?.id ?? '')
   const [error, setError] = useState<string | null>(null)
@@ -41,6 +41,10 @@ export function PromptEditor({
     event.preventDefault()
     if (mode === 'add-layer' && selectedLayerId === '') {
       setError('Choose a layer')
+      return
+    }
+    if (mode === 'add-variant' && name.trim() === '') {
+      setError('Name the variant')
       return
     }
     setIsSaving(true)

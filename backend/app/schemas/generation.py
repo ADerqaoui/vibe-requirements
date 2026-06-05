@@ -6,6 +6,7 @@ class GenerationRequest(BaseModel):
     """Need-to-Spec generation request."""
 
     model_id: int | None = None
+    prompt_id: int | None = None
     count: int = Field(ge=1, le=10)
     target_layer_id: int | None = None
 
@@ -23,3 +24,5 @@ class GenerationResult(BaseModel):
     candidates: list[GenerationCandidate]
     selected_model_id: int
     selected_model_name: str
+    selected_prompt_id: int
+    selected_prompt_name: str

@@ -76,6 +76,15 @@ async def test_generation_api_returns_candidates_and_logs(
 ) -> None:
     """Generation API uses fake gateway and writes call log."""
     need_id, model_id = seed_need_and_model(db_session)
+    prompt = Prompt(
+        task="generate_need_to_spec",
+        name="EARS",
+        version=1,
+        enabled=1,
+        template="Explicit {parent_statement} {count}",
+    )
+    db_session.add(prompt)
+    db_session.commit()
     use_db_session(api_app, db_session)
 
     async def override_gateway_factory():
@@ -87,7 +96,7 @@ async def test_generation_api_returns_candidates_and_logs(
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         response = await client.post(
             f"/api/needs/{need_id}/generate",
-            json={"model_id": model_id, "count": 2},
+            json={"model_id": model_id, "prompt_id": prompt.id, "count": 2},
         )
 
     log = db_session.scalars(select(CallLog)).one()
@@ -97,9 +106,10 @@ async def test_generation_api_returns_candidates_and_logs(
         {"index": 2, "statement": "Alert"},
     ]
     assert log.status == "success"
-    prompt = db_session.query(Prompt).filter_by(task="generate_need_to_spec", version=1).one()
     assert log.prompt_id == prompt.id
     assert log.prompt_version == prompt.version
+    assert response.json()["selected_prompt_id"] == prompt.id
+    assert response.json()["selected_prompt_name"] == "EARS"
 
 
 @pytest.mark.asyncio
