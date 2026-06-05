@@ -1,5 +1,5 @@
 """Spec CRUD service for accepted generated candidates."""
-from sqlalchemy import desc, select
+from sqlalchemy import desc, select, text
 from sqlalchemy.orm import Session
 
 from app.models.need import Need
@@ -7,6 +7,7 @@ from app.models.spec import Spec
 from app.models.spec_inspection import SpecInspection
 from app.services.layer_service import resolve_target_layer_for_need, resolve_target_layer_for_spec
 from app.services.need_service import NeedNotFoundError, get_need
+from app.services.req_id_service import next_req_id
 
 
 class SpecNotFoundError(Exception):
@@ -70,6 +71,7 @@ def create_spec_for_need(
         text=statement,
         status="pending",
         source="ai",
+        req_id=next_req_id(db, need.project_id, layer),
     )
     db.add(spec)
     db.commit()
@@ -85,6 +87,7 @@ def create_spec_for_parent_spec(
 ) -> Spec:
     """Persist one generated child Spec under another Spec."""
     parent = get_spec(db, spec_id)
+    need = get_need(db, parent.need_id)
     layer = resolve_target_layer_for_spec(db, parent.layer_id, target_layer_id)
     spec = Spec(
         need_id=parent.need_id,
@@ -93,6 +96,7 @@ def create_spec_for_parent_spec(
         text=statement,
         status="pending",
         source="ai",
+        req_id=next_req_id(db, need.project_id, layer),
     )
     db.add(spec)
     db.commit()
@@ -105,6 +109,20 @@ def get_spec(db: Session, spec_id: int) -> Spec:
     spec = db.get(Spec, spec_id)
     if spec is None:
         raise SpecNotFoundError
+    return spec
+
+
+def update_spec_text(db: Session, spec_id: int, text_value: str) -> Spec:
+    """Edit one Spec's text in place and mark it as manual source."""
+    normalized_text = text_value.strip()
+    if normalized_text == "":
+        raise ValueError("Spec text must not be blank")
+    spec = get_spec(db, spec_id)
+    spec.text = normalized_text
+    spec.source = "manual"
+    spec.updated_at = db.scalar(select(text("datetime('now')")))
+    db.commit()
+    db.refresh(spec)
     return spec
 
 

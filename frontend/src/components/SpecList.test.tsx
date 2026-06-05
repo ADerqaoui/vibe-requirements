@@ -5,7 +5,9 @@ import { SpecList } from './SpecList'
 
 const childSpec: SpecTreeNode = {
   id: 5,
+  req_id: 'REQ-SYSA-0001',
   statement: 'The brake actuator shall clamp.',
+  source: 'manual',
   complexity: null,
   status: 'pending',
   parent_spec_id: 4,
@@ -18,7 +20,9 @@ const childSpec: SpecTreeNode = {
 const specs: SpecTreeNode[] = [
   {
     id: 4,
+    req_id: 'REQ-SYS-0001',
     statement: 'The system shall brake.',
+    source: 'ai',
     complexity: null,
     status: 'pending',
     parent_spec_id: null,
@@ -101,7 +105,9 @@ describe('SpecList', () => {
               need_id: 1,
               parent_spec_id: null,
               latest_inspection_id: 9,
+              req_id: 'REQ-SYS-0001',
               statement: 'The system shall brake.',
+              source: 'ai',
               complexity: null,
               status: payload.decision,
               layer_id: 2,
@@ -140,6 +146,8 @@ describe('SpecList', () => {
     expect(await screen.findByLabelText('Inspection model')).toBeInTheDocument()
     expect(screen.getByText('System Requirement')).toBeInTheDocument()
     expect(screen.getByText('System Architecture')).toBeInTheDocument()
+    expect(screen.getByText('REQ-SYS-0001')).toBeInTheDocument()
+    expect(screen.getByText('Manual')).toBeInTheDocument()
     fireEvent.click(screen.getByText('The brake actuator shall clamp.'))
 
     expect(onSelectSpec).toHaveBeenCalledWith(childSpec)

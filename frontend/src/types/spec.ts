@@ -4,7 +4,9 @@ export type Spec = {
   parent_spec_id: number | null
   layer_id: number
   layer_name: string
+  req_id: string | null
   statement: string
+  source: string
   complexity: number | null
   status: string
   latest_inspection_id: number | null
@@ -19,7 +21,9 @@ export type SpecPayload = {
 
 export type SpecTreeNode = {
   id: number
+  req_id?: string | null
   statement: string
+  source?: string
   complexity: number | null
   status: string
   parent_spec_id: number | null

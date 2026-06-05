@@ -37,12 +37,14 @@ def seed_basic_export(db_session: Session) -> int:
         text="The system shall apply brakes.",
         complexity=3,
         source="ai",
+        req_id="REQ-SYS-0001",
     )
     root_two = Spec(
         need_id=need_one.id,
         layer_id=layer.id,
         text="The system shall alert the driver.",
         source="ai",
+        req_id="REQ-SYS-0002",
     )
     root_three = Spec(
         need_id=need_two.id,
@@ -50,6 +52,7 @@ def seed_basic_export(db_session: Session) -> int:
         text="The system shall record diagnostic faults.",
         complexity=5,
         source="ai",
+        req_id="REQ-SYS-0003",
     )
     db_session.add_all([root_one, root_two, root_three])
     db_session.flush()
@@ -59,6 +62,7 @@ def seed_basic_export(db_session: Session) -> int:
         layer_id=layer.id,
         text="The brake actuator shall engage within 100 ms.",
         source="ai",
+        req_id="REQ-SYS-0004",
     )
     db_session.add(child)
     db_session.commit()
@@ -155,7 +159,7 @@ def test_export_markdown_renders_grandchild_heading_levels(
 
     headings = [line for line in rendered.splitlines() if "Spec:" in line]
     assert headings == [
-        "### Spec: Root spec",
-        "#### Spec: Child spec",
-        "##### Spec: Grandchild spec",
+        "### Spec: **REQ-UNASSIGNED** — Root spec",
+        "#### Spec: **REQ-UNASSIGNED** — Child spec",
+        "##### Spec: **REQ-UNASSIGNED** — Grandchild spec",
     ]

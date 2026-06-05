@@ -1,7 +1,10 @@
+import { useState } from 'react'
 import type { SpecDecision } from '../api/decisions'
+import { updateSpecText } from '../api/specs'
 import type { ClassificationVote } from '../types/classification'
 import type { SpecInspection } from '../types/inspection'
 import type { SpecTreeNode } from '../types/spec'
+import { SpecEditor } from './SpecEditor'
 
 type SpecNodeProps = {
   classifyingSpecIds: Set<number>
@@ -13,6 +16,7 @@ type SpecNodeProps = {
   onDecide: (spec: SpecTreeNode, decision: SpecDecision) => void
   onInspect: (spec: SpecTreeNode) => void
   onSelectSpec?: (spec: SpecTreeNode) => void
+  onSpecChanged?: () => void
   selectedSpecId?: number | null
   spec: SpecTreeNode
   statusBySpec: Record<number, string>
@@ -56,6 +60,7 @@ export function SpecNode({
   onDecide,
   onInspect,
   onSelectSpec,
+  onSpecChanged,
   selectedSpecId,
   spec,
   statusBySpec,
@@ -66,6 +71,13 @@ export function SpecNode({
   const status = statusBySpec[spec.id] ?? spec.status
   const isSelected = selectedSpecId === spec.id
   const isAutoClassifying = classifyingSpecIds.has(spec.id)
+  const [isEditing, setIsEditing] = useState(false)
+
+  async function handleSave(text: string) {
+    await updateSpecText(spec.id, text)
+    setIsEditing(false)
+    onSpecChanged?.()
+  }
 
   return (
     <li
@@ -74,13 +86,21 @@ export function SpecNode({
       }`}
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <button
-          className="min-w-0 flex-1 text-left text-neutral-950"
-          onClick={() => onSelectSpec?.(spec)}
-          type="button"
-        >
-          {spec.statement}
-        </button>
+        {isEditing ? (
+          <SpecEditor initialText={spec.statement} onCancel={() => setIsEditing(false)} onSave={handleSave} />
+        ) : (
+          <button
+            className="min-w-0 flex-1 text-left text-neutral-950"
+            onClick={() => onSelectSpec?.(spec)}
+            type="button"
+          >
+            <span className="mr-2 font-semibold text-neutral-700">{spec.req_id ?? 'REQ-UNASSIGNED'}</span>
+            {spec.statement}
+          </button>
+        )}
+        <span className="rounded bg-neutral-100 px-2 py-1 text-xs text-neutral-700">
+          {spec.source === 'manual' ? 'Manual' : 'AI'}
+        </span>
         <span className="rounded bg-blue-50 px-2 py-1 text-xs text-blue-700">
           {spec.layer_name}
         </span>
@@ -115,6 +135,9 @@ export function SpecNode({
           type="button"
         >
           {loadingInspectionId === spec.id ? 'Inspecting...' : 'Inspect'}
+        </button>
+        <button className="text-xs font-medium text-neutral-900" onClick={() => setIsEditing(true)} type="button">
+          Edit
         </button>
         <button className="text-xs text-green-700" onClick={() => onDecide(spec, 'accepted')} type="button">
           Accept
@@ -161,6 +184,7 @@ export function SpecNode({
               onDecide={onDecide}
               onInspect={onInspect}
               onSelectSpec={onSelectSpec}
+              onSpecChanged={onSpecChanged}
               selectedSpecId={selectedSpecId}
               spec={child}
               statusBySpec={statusBySpec}

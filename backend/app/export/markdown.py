@@ -59,7 +59,8 @@ def _append_spec(
 ) -> None:
     """Append one Spec and its children."""
     heading = "#" * min(heading_level, MAX_HEADING)
-    lines.extend([f"{heading} Spec: {spec.text}", ""])
+    req_id = spec.req_id if spec.req_id is not None else "REQ-UNASSIGNED"
+    lines.extend([f"{heading} Spec: **{req_id}** — {spec.text}", ""])
     if spec.complexity is not None:
         lines.extend([f"**Complexity:** {spec.complexity}", ""])
     for child_spec in specs_by_parent.get(spec.id, []):

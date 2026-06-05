@@ -28,7 +28,9 @@ class SpecOut(BaseModel):
     parent_spec_id: int | None
     layer_id: int
     layer_name: str
+    req_id: str | None
     statement: str
+    source: str
     complexity: int | None
     status: str
     latest_inspection_id: int | None = None
@@ -40,7 +42,9 @@ class SpecTreeNode(BaseModel):
     """Nested Spec tree node response body."""
 
     id: int
+    req_id: str | None
     statement: str
+    source: str
     complexity: int | None
     status: str
     parent_spec_id: int | None
@@ -48,3 +52,18 @@ class SpecTreeNode(BaseModel):
     layer_name: str
     latest_inspection_id: int | None = None
     children: list["SpecTreeNode"]
+
+
+class SpecUpdate(BaseModel):
+    """Request body for text-only spec edits."""
+
+    text: str = Field(min_length=1)
+
+    @field_validator("text")
+    @classmethod
+    def normalize_text(cls, value: str) -> str:
+        """Trim and reject blank text."""
+        normalized_value = value.strip()
+        if normalized_value == "":
+            raise ValueError("Spec text must not be blank")
+        return normalized_value

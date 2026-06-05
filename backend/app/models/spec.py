@@ -22,6 +22,7 @@ class Spec(Base):
     text: Mapped[str] = mapped_column(Text, nullable=False)
     status: Mapped[str] = mapped_column(Text, nullable=False, server_default="pending")
     source: Mapped[str] = mapped_column(Text, nullable=False, server_default="ai")
+    req_id: Mapped[str | None] = mapped_column(Text)
     complexity: Mapped[int | None] = mapped_column(Integer)
     gen_model_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("models.id"))
     gen_prompt_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("prompts.id"))

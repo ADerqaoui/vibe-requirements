@@ -147,6 +147,7 @@ export function SpecList({
             onDecide={handleDecision}
             onInspect={handleInspect}
             onSelectSpec={onSelectSpec}
+            onSpecChanged={onSpecChanged}
             selectedSpecId={selectedSpecId}
             spec={spec}
             statusBySpec={statusBySpec}

@@ -6,7 +6,9 @@ import { SpecList } from './SpecList'
 const specs: SpecTreeNode[] = [
   {
     id: 4,
+    req_id: 'REQ-SYS-0001',
     statement: 'The system shall brake.',
+    source: 'ai',
     complexity: null,
     status: 'pending',
     parent_spec_id: null,
