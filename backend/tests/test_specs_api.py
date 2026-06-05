@@ -55,6 +55,8 @@ async def test_specs_api_creates_and_lists_only_need_specs(
     assert create_response.json()["statement"] == "The system shall brake."
     assert create_response.json()["parent_spec_id"] is None
     assert create_response.json()["layer_name"] == "System Requirement"
+    assert create_response.json()["req_id"] == "REQ-SYS-0001"
+    assert create_response.json()["source"] == "ai"
     assert [item["statement"] for item in list_response.json()] == ["The system shall brake."]
     assert [item["parent_spec_id"] for item in list_response.json()] == [None]
 
@@ -66,10 +68,10 @@ async def test_specs_api_creates_and_lists_only_need_specs(
 
 @pytest.mark.asyncio
 async def test_spec_tree_includes_layer_badges(api_app: FastAPI, db_session: Session) -> None:
-    """Spec tree responses include layer id and display name."""
+    """Spec tree responses include layer, req_id, and source."""
     need_id, _other_need_id = seed_need_with_layer(db_session)
     layer = db_session.query(Layer).filter_by(name="System Requirement").one()
-    spec = Spec(need_id=need_id, layer_id=layer.id, text="Root", source="ai")
+    spec = Spec(need_id=need_id, layer_id=layer.id, text="Root", source="ai", req_id="REQ-SYS-0001")
     db_session.add(spec)
     db_session.commit()
 
@@ -80,6 +82,63 @@ async def test_spec_tree_includes_layer_badges(api_app: FastAPI, db_session: Ses
     assert response.status_code == 200
     assert response.json()[0]["layer_id"] == layer.id
     assert response.json()[0]["layer_name"] == "System Requirement"
+    assert response.json()[0]["req_id"] == "REQ-SYS-0001"
+    assert response.json()[0]["source"] == "ai"
+
+
+@pytest.mark.asyncio
+async def test_specs_api_edits_text_and_preserves_identity(
+    api_app: FastAPI,
+    db_session: Session,
+) -> None:
+    """PATCH edits text, flips source, and preserves identity fields."""
+    need_id, _other_need_id = seed_need_with_layer(db_session)
+    layer = db_session.query(Layer).filter_by(name="System Requirement").one()
+    spec = Spec(
+        need_id=need_id,
+        layer_id=layer.id,
+        text="Original",
+        source="ai",
+        status="accepted",
+        req_id="REQ-SYS-0001",
+    )
+    db_session.add(spec)
+    db_session.commit()
+    original_updated_at = spec.updated_at
+
+    transport = ASGITransport(app=api_app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.patch(f"/api/specs/{spec.id}", json={"text": " Edited text "})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["statement"] == "Edited text"
+    assert body["source"] == "manual"
+    assert body["req_id"] == "REQ-SYS-0001"
+    assert body["layer_id"] == layer.id
+    assert body["status"] == "accepted"
+    assert body["updated_at"] >= original_updated_at
+
+
+@pytest.mark.asyncio
+async def test_specs_api_edit_rejects_blank_and_missing(
+    api_app: FastAPI,
+    db_session: Session,
+) -> None:
+    """PATCH returns 422 for blank text and 404 for unknown specs."""
+    need_id, _other_need_id = seed_need_with_layer(db_session)
+    layer = db_session.query(Layer).filter_by(name="System Requirement").one()
+    spec = Spec(need_id=need_id, layer_id=layer.id, text="Original", source="ai", req_id="REQ-SYS-0001")
+    db_session.add(spec)
+    db_session.commit()
+
+    transport = ASGITransport(app=api_app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        blank_response = await client.patch(f"/api/specs/{spec.id}", json={"text": "   "})
+        missing_response = await client.patch("/api/specs/999", json={"text": "Edited"})
+
+    assert blank_response.status_code == 422
+    assert missing_response.status_code == 404
 
 
 @pytest.mark.asyncio

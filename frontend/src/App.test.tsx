@@ -62,7 +62,9 @@ describe('App router setting flow', () => {
           return jsonResponse([
             {
               id: 4,
+              req_id: 'REQ-SYS-0001',
               statement: 'Spec',
+              source: 'ai',
               complexity: null,
               status: 'pending',
               parent_spec_id: null,

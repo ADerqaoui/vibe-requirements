@@ -47,3 +47,15 @@ export async function createChildSpec(specId: number, payload: SpecPayload): Pro
   }
   return (await response.json()) as Spec
 }
+
+export async function updateSpecText(specId: number, text: string): Promise<Spec> {
+  const response = await fetch(`/api/specs/${specId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text }),
+  })
+  if (!response.ok) {
+    throw new Error(`Spec edit request failed: HTTP ${response.status}`)
+  }
+  return (await response.json()) as Spec
+}

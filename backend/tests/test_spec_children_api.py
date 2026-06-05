@@ -139,7 +139,9 @@ async def test_spec_tree_api_returns_recursive_tree(
     assert response.json() == [
         {
             "id": parent_id,
+            "req_id": None,
             "statement": "Parent",
+            "source": "ai",
             "complexity": None,
             "status": "pending",
             "parent_spec_id": None,
@@ -149,7 +151,9 @@ async def test_spec_tree_api_returns_recursive_tree(
             "children": [
                 {
                     "id": child_id,
+                    "req_id": None,
                     "statement": "Child",
+                    "source": "ai",
                     "complexity": None,
                     "status": "pending",
                     "parent_spec_id": parent_id,
@@ -159,7 +163,9 @@ async def test_spec_tree_api_returns_recursive_tree(
                     "children": [
                         {
                             "id": grandchild_id,
+                            "req_id": None,
                             "statement": "Grandchild",
+                            "source": "ai",
                             "complexity": None,
                             "status": "pending",
                             "parent_spec_id": child_id,
@@ -174,7 +180,9 @@ async def test_spec_tree_api_returns_recursive_tree(
         },
         {
             "id": sibling_id,
+            "req_id": None,
             "statement": "Sibling",
+            "source": "ai",
             "complexity": None,
             "status": "pending",
             "parent_spec_id": None,

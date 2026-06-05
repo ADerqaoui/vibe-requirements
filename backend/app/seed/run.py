@@ -12,6 +12,7 @@ from app.models.setting import Setting
 from app.seed.models_seed import CORE_SETTINGS, MODEL_SEED_ROWS
 from app.seed.prompts_seed import DEFAULT_PROMPT_ROWS, GENERATE_SPEC_TO_CHILD_V2_TEMPLATE
 from app.seed.reference_data import DISCIPLINES, LAYER_PARENTS, LAYERS
+from app.services.req_id_service import backfill_missing_req_ids
 
 
 def seed_reference_data(db: Session) -> None:
@@ -116,6 +117,7 @@ def main() -> None:
         seed_reference_data(db)
         seed_models_and_settings(db)
         seed_prompts(db)
+        backfill_missing_req_ids(db)
 
 
 if __name__ == "__main__":

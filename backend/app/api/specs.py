@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.models.spec import Spec
-from app.schemas.spec import SpecCreate, SpecOut, SpecTreeNode
+from app.schemas.spec import SpecCreate, SpecOut, SpecTreeNode, SpecUpdate
 from app.services.need_service import NeedNotFoundError
 from app.services.layer_service import LayerNotAllowedForParentError, TargetLayerRequiredError
 from app.services.spec_service import (
@@ -16,6 +16,7 @@ from app.services.spec_service import (
     list_full_spec_tree_for_need,
     list_children_of_spec,
     list_specs_for_need,
+    update_spec_text,
 )
 
 router = APIRouter(tags=["specs"])
@@ -88,6 +89,21 @@ async def create_child_spec_route(
         return _layer_not_allowed_response(error)
 
 
+@router.patch("/specs/{spec_id}", response_model=SpecOut)
+async def update_spec_route(
+    spec_id: int,
+    payload: SpecUpdate,
+    db: Session = Depends(get_db),
+) -> SpecOut:
+    """Edit one Spec's text in place."""
+    try:
+        spec = update_spec_text(db, spec_id, payload.text)
+        latest_id = latest_inspection_ids(db, [spec.id]).get(spec.id)
+        return _spec_out(spec, latest_id)
+    except SpecNotFoundError as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Spec not found") from error
+
+
 def _spec_out(spec: Spec, latest_inspection_id: int | None) -> SpecOut:
     """Map ORM fields to the slice API shape."""
     return SpecOut(
@@ -96,7 +112,9 @@ def _spec_out(spec: Spec, latest_inspection_id: int | None) -> SpecOut:
         parent_spec_id=spec.parent_spec_id,
         layer_id=spec.layer_id,
         layer_name=_layer_name(spec),
+        req_id=spec.req_id,
         statement=spec.text,
+        source=spec.source,
         complexity=spec.complexity,
         status=spec.status,
         latest_inspection_id=latest_inspection_id,
@@ -110,7 +128,9 @@ def _spec_tree(specs: list[Spec], latest_ids: dict[int, int]) -> list[SpecTreeNo
     nodes = {
         spec.id: SpecTreeNode(
             id=spec.id,
+            req_id=spec.req_id,
             statement=spec.text,
+            source=spec.source,
             complexity=spec.complexity,
             status=spec.status,
             parent_spec_id=spec.parent_spec_id,
