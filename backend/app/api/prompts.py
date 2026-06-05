@@ -57,16 +57,21 @@ async def list_prompt_variants_route(
     layer_id: int | None = None,
     db: Session = Depends(get_db),
 ) -> list[PromptVariantRead]:
-    """Return enabled variants for one exact prompt group."""
+    """Return enabled variants accepted for one requested prompt group."""
     variants = list_variants(db, task, layer_id)
-    default_name = get_default_variant_name(db, task, layer_id)
+    layer_names = _layer_names(db, variants)
+    default_layer_id = _default_layer_id(variants, layer_id)
+    default_name = get_default_variant_name(db, task, default_layer_id)
     return [
         PromptVariantRead(
             name=variant.name,
             version=variant.version,
             template=variant.template,
-            is_default=variant.name == default_name,
+            is_default=variant.layer_id == default_layer_id and variant.name == default_name,
             prompt_id=variant.id,
+            layer_id=variant.layer_id,
+            layer_name=layer_names.get(variant.layer_id) if variant.layer_id is not None else None,
+            scope_label=layer_names.get(variant.layer_id) if variant.layer_id is not None else "Global",
         )
         for variant in variants
     ]
@@ -147,6 +152,13 @@ def _read_version(prompt: Prompt, layer_names: dict[int, str]) -> PromptVersionR
     """Build a prompt version response with layer name."""
     layer_name = layer_names.get(prompt.layer_id) if prompt.layer_id is not None else None
     return PromptVersionRead.model_validate(prompt).model_copy(update={"layer_name": layer_name})
+
+
+def _default_layer_id(variants: list[Prompt], layer_id: int | None) -> int | None:
+    """Return the group whose default should be preselected."""
+    if layer_id is not None and any(variant.layer_id == layer_id for variant in variants):
+        return layer_id
+    return None
 
 
 def _invalid_layer_response(db: Session, layer_id: int) -> JSONResponse | None:

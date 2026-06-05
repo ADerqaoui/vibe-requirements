@@ -43,6 +43,9 @@ class PromptVariantRead(BaseModel):
     template: str
     is_default: bool
     prompt_id: int
+    layer_id: int | None
+    layer_name: str | None = None
+    scope_label: str
 
 
 class PromptDefaultSet(BaseModel):

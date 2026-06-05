@@ -24,7 +24,7 @@ from app.services.generation_service import (
     resolve_generation_model,
 )
 from app.services.layer_service import LayerNotAllowedForParentError, TargetLayerRequiredError
-from app.services.prompt_errors import PromptDisabledError, PromptNotFoundError
+from app.services.prompt_errors import PromptDisabledError, PromptLayerMismatchError, PromptNotFoundError
 from app.services.router_service import RouterNoModelError, RouterTaskNotRoutedError
 from app.services.router_service import is_router_enabled
 
@@ -129,6 +129,8 @@ async def _generate_specs_for_parent(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Prompt not found") from error
     except PromptDisabledError as error:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Prompt is disabled") from error
+    except PromptLayerMismatchError as error:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(error)) from error
     except CostCeilingExceededError as error:
         return cost_ceiling_response(error)
     except GatewayError as error:

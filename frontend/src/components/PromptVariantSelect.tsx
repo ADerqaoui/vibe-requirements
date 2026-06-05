@@ -11,7 +11,7 @@ type PromptVariantSelectProps = {
 
 function labelFor(variant: PromptVariant): string {
   const suffix = variant.is_default ? ' (default)' : ''
-  return `${variant.name} v${variant.version}${suffix}`
+  return `${variant.scope_label}: ${variant.name} v${variant.version}${suffix}`
 }
 
 export function PromptVariantSelect({
@@ -28,7 +28,7 @@ export function PromptVariantSelect({
       <div className="grid gap-1 text-xs font-medium text-neutral-600">
         {label}
         <div className="rounded-md border border-neutral-300 bg-neutral-50 px-3 py-2 text-sm font-normal text-neutral-900">
-          {defaultVariant ? `Auto (default): ${defaultVariant.name}` : 'Auto (default)'}
+          {defaultVariant ? `Auto (default): ${labelFor(defaultVariant)}` : 'Auto (default)'}
         </div>
       </div>
     )

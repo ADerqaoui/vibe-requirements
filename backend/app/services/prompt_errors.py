@@ -31,3 +31,7 @@ class PromptRenderError(Exception):
 
 class PromptDisabledError(Exception):
     """Raised when an explicit prompt selection points at a disabled row."""
+
+
+class PromptLayerMismatchError(Exception):
+    """Raised when an explicit prompt belongs to another specific layer."""

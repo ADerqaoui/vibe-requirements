@@ -9,12 +9,12 @@
 > to the User, who commits it.
 
 ## Codex — handoff & notes
-- [Codex — YYYY-MM-DD] <what was built, tests run + results, deviations>
 <!-- Include an acceptance-to-test mapping in your handoff:
 | Acceptance criterion | Test | Covered? |
 | --- | --- | --- |
 -->
 - [Codex — 2026-06-05] Built slice 21 schema-free: prompt variants are keyed by `(task, layer_id, name)`, defaults are stored in the `prompt_defaults` settings JSON map, and version/create/promote/list/default lookup are variant-scoped. Added `select_prompt` with the future context seam and threaded optional `prompt_id` through generation and inspection. Added variant list/set-default APIs and frontend prompt selectors for generation, inspection, and the prompts panel. Router mode omits prompt selection and uses the default.
+- [Codex — 2026-06-05] Addressed ChatGPT F1/F2/F3: explicit `prompt_id` selection now enforces task, active enabled variant version, and layer boundary while allowing global fallback; variants API returns layer-specific plus global choices with scope labels; wrong-layer and global-fallback tests were added; removed the placeholder handoff line.
 
 | Acceptance criterion | Test | Covered? |
 | --- | --- | --- |

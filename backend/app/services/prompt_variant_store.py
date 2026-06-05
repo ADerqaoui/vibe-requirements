@@ -27,6 +27,14 @@ def list_versions(db: Session, task: str) -> list[Prompt]:
 
 
 def list_variants(db: Session, task: str, layer_id: int | None) -> list[Prompt]:
+    """Return enabled variants accepted for one requested task/layer."""
+    layer_variants = _variants_in_group(db, task, layer_id)
+    if layer_id is None:
+        return layer_variants
+    return [*layer_variants, *_variants_in_group(db, task, None)]
+
+
+def _variants_in_group(db: Session, task: str, layer_id: int | None) -> list[Prompt]:
     """Return enabled variants for one exact task/layer group."""
     rows = db.scalars(
         select(Prompt)

@@ -29,6 +29,9 @@ export type PromptVariant = {
   template: string
   is_default: boolean
   prompt_id: number
+  layer_id: number | null
+  layer_name: string | null
+  scope_label: string
 }
 
 export type PromptDefaultSet = {

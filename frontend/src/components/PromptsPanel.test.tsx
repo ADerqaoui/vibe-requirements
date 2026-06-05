@@ -2,7 +2,6 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Prompt } from '../types/prompt'
 import { PromptsPanel } from './PromptsPanel'
-
 function jsonResponse(body: unknown): Response {
   return { ok: true, status: 200, json: async () => body } as Response
 }
@@ -13,7 +12,12 @@ const layers = [
 ]
 
 function variantsFor(prompt: Prompt, isDefault = true) {
-  return [{ name: prompt.name, version: prompt.version, template: prompt.template, is_default: isDefault, prompt_id: prompt.version }]
+  return [{
+    name: prompt.name, version: prompt.version, template: prompt.template,
+    is_default: isDefault,
+    prompt_id: prompt.version, layer_id: prompt.layer_id, layer_name: prompt.layer_name,
+    scope_label: prompt.layer_name ?? 'Global',
+  }]
 }
 
 function promptFixture(overrides: Partial<Prompt> = {}): Prompt {
@@ -81,7 +85,7 @@ describe('PromptsPanel', () => {
         if (path.includes('/variants')) {
           return jsonResponse([
             ...variantsFor(prompt, !earsDefault),
-            { name: 'EARS', version: 1, template: 'EARS {parent_statement}', is_default: earsDefault, prompt_id: 99 },
+            { name: 'EARS', version: 1, template: 'EARS {parent_statement}', is_default: earsDefault, prompt_id: 99, layer_id: null, layer_name: null, scope_label: 'Global' },
           ])
         }
         if (path === '/api/prompts/set-default' && method === 'POST') {

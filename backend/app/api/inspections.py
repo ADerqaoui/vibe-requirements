@@ -22,7 +22,7 @@ from app.services.inspector_service import (
     resolve_inspector_model,
 )
 from app.services.model_service import get_model
-from app.services.prompt_errors import PromptDisabledError, PromptNotFoundError
+from app.services.prompt_errors import PromptDisabledError, PromptLayerMismatchError, PromptNotFoundError
 from app.services.router_service import RouterNoModelError, RouterTaskNotRoutedError
 from app.services.router_service import is_router_enabled
 
@@ -68,6 +68,8 @@ async def inspect_spec_route(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Prompt not found") from error
     except PromptDisabledError as error:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Prompt is disabled") from error
+    except PromptLayerMismatchError as error:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(error)) from error
     except GatewayError as error:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,

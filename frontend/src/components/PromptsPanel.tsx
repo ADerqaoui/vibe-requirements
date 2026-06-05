@@ -99,7 +99,7 @@ async function fetchPromptEntries(): Promise<PromptVariantEntry[]> {
 
 async function expandPromptVariants(prompt: Prompt): Promise<PromptVariantEntry[]> {
   const variants = await fetchPromptVariants(prompt.task, prompt.layer_id)
-  return variants.map((variant) => ({
+  return variants.filter((variant) => variant.layer_id === prompt.layer_id).map((variant) => ({
     ...prompt,
     name: variant.name,
     version: variant.version,

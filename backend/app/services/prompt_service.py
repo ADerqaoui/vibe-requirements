@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.models.prompt import Prompt
 from app.services.prompt_errors import (
     PromptDisabledError,
+    PromptLayerMismatchError,
     PromptNotFoundError,
     PromptRenderError,
     PromptVariableMissingError,
@@ -70,8 +71,11 @@ def select_prompt(
     row = db.get(Prompt, context.prompt_id)
     if row is None or row.task != task:
         raise PromptNotFoundError(str(context.prompt_id))
-    if not bool(row.enabled):
+    active_row = _active_in_slot(db, row.task, row.layer_id, row.name, row.discipline_scope)
+    if not bool(row.enabled) or active_row is None or active_row.id != row.id:
         raise PromptDisabledError(str(context.prompt_id))
+    if row.layer_id is not None and row.layer_id != layer_id:
+        raise PromptLayerMismatchError("prompt does not belong to the target layer")
     return row
 
 

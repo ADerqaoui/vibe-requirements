@@ -77,7 +77,16 @@ describe('App router setting flow', () => {
           return jsonResponse([])
         }
         if (path.includes('/api/prompts/') && path.includes('/variants')) {
-          return jsonResponse([{ name: 'Default', version: 1, template: 'Prompt', is_default: true, prompt_id: 9 }])
+          return jsonResponse([{
+            name: 'Default',
+            version: 1,
+            template: 'Prompt',
+            is_default: true,
+            prompt_id: 9,
+            layer_id: null,
+            layer_name: null,
+            scope_label: 'Global',
+          }])
         }
         if (path === '/api/cost-summary') {
           return jsonResponse({ currency: 'SEK', ceiling_sek: 50, month_spent_sek: 0, month_remaining_sek: 50, all_time_spent_sek: 0, by_provider: [], by_model: [] })
