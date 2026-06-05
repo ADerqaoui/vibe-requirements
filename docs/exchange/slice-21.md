@@ -37,3 +37,6 @@
 
 ## User — decisions
 - [User — YYYY-MM-DD] decision — rationale
+
+## Claude — final conformance
+- [Claude — 2026-06-05] APPROVE — per-layer prompt variants are now real and selectable, and crucially the selection runs through one select_prompt chokepoint that takes a context object: the seam that lets a future slice make the router choose a prompt by complexity/constraints without touching the data model, generation flow, or UI. Variant isolation (one variant's versions never disabling another's) is the load-bearing invariant, one level finer than slice 19's slot isolation, and it's tested. The layer-boundary fix matters: trusting the dropdown and accepting any same-task prompt_id was a real boundary hole; the resolution — accept the target layer OR global (mirroring the slice-18 default fallback), reject other specific layers — is the principled rule, and making the variants endpoint return exactly that set keeps the API contract and the UI honest. Settings-JSON default was the right call to avoid migration risk on a single-user tool, though QA's note that this area may eventually warrant a migration is fair if variant/default management grows. Two files now sit at 199 lines (useGenerationActions.ts, prompt_variant_store.py) — next-touch extraction candidates. Clear to merge.
