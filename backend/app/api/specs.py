@@ -4,8 +4,8 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 from app.db import get_db
-from app.models.spec import Spec
-from app.schemas.spec import SpecCreate, SpecOut, SpecTreeNode, SpecUpdate
+from app.api.spec_serialization import spec_out, spec_tree
+from app.schemas.spec import ManualSpecCreate, SpecCreate, SpecOut, SpecTreeNode, SpecUpdate
 from app.services.need_service import NeedNotFoundError
 from app.services.layer_service import LayerNotAllowedForParentError, TargetLayerRequiredError
 from app.services.spec_service import (
@@ -28,7 +28,7 @@ async def list_specs_route(need_id: int, db: Session = Depends(get_db)) -> list[
     try:
         specs = list_specs_for_need(db, need_id)
         latest_ids = latest_inspection_ids(db, [spec.id for spec in specs])
-        return [_spec_out(spec, latest_ids.get(spec.id)) for spec in specs]
+        return [spec_out(spec, latest_ids.get(spec.id)) for spec in specs]
     except NeedNotFoundError as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Need not found") from error
 
@@ -39,7 +39,7 @@ async def list_spec_tree_route(need_id: int, db: Session = Depends(get_db)) -> l
     try:
         specs = list_full_spec_tree_for_need(db, need_id)
         latest_ids = latest_inspection_ids(db, [spec.id for spec in specs])
-        return _spec_tree(specs, latest_ids)
+        return spec_tree(specs, latest_ids)
     except NeedNotFoundError as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Need not found") from error
 
@@ -52,7 +52,32 @@ async def create_spec_route(
 ) -> SpecOut:
     """Create a spec under a Need."""
     try:
-        return _spec_out(create_spec_for_need(db, need_id, payload.statement, payload.target_layer_id), None)
+        return spec_out(create_spec_for_need(db, need_id, payload.statement, payload.target_layer_id), None)
+    except NeedNotFoundError as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Need not found") from error
+    except TargetLayerRequiredError:
+        return _target_layer_required_response()
+    except LayerNotAllowedForParentError as error:
+        return _layer_not_allowed_response(error)
+
+
+@router.post("/needs/{need_id}/specs/manual", response_model=SpecOut, status_code=status.HTTP_201_CREATED)
+async def create_manual_spec_route(
+    need_id: int,
+    payload: ManualSpecCreate,
+    db: Session = Depends(get_db),
+) -> SpecOut:
+    """Create a manually-authored spec under a Need."""
+    try:
+        spec = create_spec_for_need(
+            db,
+            need_id,
+            payload.text,
+            payload.target_layer_id,
+            source="manual",
+            status="accepted",
+        )
+        return spec_out(spec, None)
     except NeedNotFoundError as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Need not found") from error
     except TargetLayerRequiredError:
@@ -67,7 +92,7 @@ async def list_child_specs_route(spec_id: int, db: Session = Depends(get_db)) ->
     try:
         specs = list_children_of_spec(db, spec_id)
         latest_ids = latest_inspection_ids(db, [spec.id for spec in specs])
-        return [_spec_out(spec, latest_ids.get(spec.id)) for spec in specs]
+        return [spec_out(spec, latest_ids.get(spec.id)) for spec in specs]
     except SpecNotFoundError as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Spec not found") from error
 
@@ -80,7 +105,32 @@ async def create_child_spec_route(
 ) -> SpecOut:
     """Create a child Spec under a Spec."""
     try:
-        return _spec_out(create_spec_for_parent_spec(db, spec_id, payload.statement, payload.target_layer_id), None)
+        return spec_out(create_spec_for_parent_spec(db, spec_id, payload.statement, payload.target_layer_id), None)
+    except SpecNotFoundError as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Spec not found") from error
+    except TargetLayerRequiredError:
+        return _target_layer_required_response()
+    except LayerNotAllowedForParentError as error:
+        return _layer_not_allowed_response(error)
+
+
+@router.post("/specs/{spec_id}/specs/manual", response_model=SpecOut, status_code=status.HTTP_201_CREATED)
+async def create_manual_child_spec_route(
+    spec_id: int,
+    payload: ManualSpecCreate,
+    db: Session = Depends(get_db),
+) -> SpecOut:
+    """Create a manually-authored child Spec under a Spec."""
+    try:
+        spec = create_spec_for_parent_spec(
+            db,
+            spec_id,
+            payload.text,
+            payload.target_layer_id,
+            source="manual",
+            status="accepted",
+        )
+        return spec_out(spec, None)
     except SpecNotFoundError as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Spec not found") from error
     except TargetLayerRequiredError:
@@ -99,64 +149,9 @@ async def update_spec_route(
     try:
         spec = update_spec_text(db, spec_id, payload.text)
         latest_id = latest_inspection_ids(db, [spec.id]).get(spec.id)
-        return _spec_out(spec, latest_id)
+        return spec_out(spec, latest_id)
     except SpecNotFoundError as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Spec not found") from error
-
-
-def _spec_out(spec: Spec, latest_inspection_id: int | None) -> SpecOut:
-    """Map ORM fields to the slice API shape."""
-    return SpecOut(
-        id=spec.id,
-        need_id=spec.need_id,
-        parent_spec_id=spec.parent_spec_id,
-        layer_id=spec.layer_id,
-        layer_name=_layer_name(spec),
-        req_id=spec.req_id,
-        statement=spec.text,
-        source=spec.source,
-        complexity=spec.complexity,
-        status=spec.status,
-        latest_inspection_id=latest_inspection_id,
-        created_at=spec.created_at,
-        updated_at=spec.updated_at,
-    )
-
-
-def _spec_tree(specs: list[Spec], latest_ids: dict[int, int]) -> list[SpecTreeNode]:
-    """Build a recursively nested Spec tree from id-ordered rows."""
-    nodes = {
-        spec.id: SpecTreeNode(
-            id=spec.id,
-            req_id=spec.req_id,
-            statement=spec.text,
-            source=spec.source,
-            complexity=spec.complexity,
-            status=spec.status,
-            parent_spec_id=spec.parent_spec_id,
-            layer_id=spec.layer_id,
-            layer_name=_layer_name(spec),
-            latest_inspection_id=latest_ids.get(spec.id),
-            children=[],
-        )
-        for spec in specs
-    }
-    roots: list[SpecTreeNode] = []
-    for spec in specs:
-        node = nodes[spec.id]
-        if spec.parent_spec_id is None:
-            roots.append(node)
-            continue
-        parent = nodes.get(spec.parent_spec_id)
-        if parent is not None:
-            parent.children.append(node)
-    return roots
-
-
-def _layer_name(spec: Spec) -> str:
-    """Return a display layer name for serialized specs."""
-    layer = getattr(spec, "layer", None)
-    return layer.name if layer is not None else ""
 
 
 def _target_layer_required_response() -> JSONResponse:

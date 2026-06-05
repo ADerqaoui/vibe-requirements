@@ -1,4 +1,4 @@
-import type { Spec, SpecPayload, SpecTreeNode } from '../types/spec'
+import type { ManualSpecPayload, Spec, SpecPayload, SpecTreeNode } from '../types/spec'
 
 export async function fetchNeedSpecs(needId: number): Promise<Spec[]> {
   const response = await fetch(`/api/needs/${needId}/specs`)
@@ -44,6 +44,30 @@ export async function createChildSpec(specId: number, payload: SpecPayload): Pro
   })
   if (!response.ok) {
     throw new Error(`Specs request failed: HTTP ${response.status}`)
+  }
+  return (await response.json()) as Spec
+}
+
+export async function createManualNeedSpec(needId: number, payload: ManualSpecPayload): Promise<Spec> {
+  const response = await fetch(`/api/needs/${needId}/specs/manual`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  if (!response.ok) {
+    throw new Error(`Manual spec request failed: HTTP ${response.status}`)
+  }
+  return (await response.json()) as Spec
+}
+
+export async function createManualChildSpec(specId: number, payload: ManualSpecPayload): Promise<Spec> {
+  const response = await fetch(`/api/specs/${specId}/specs/manual`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  if (!response.ok) {
+    throw new Error(`Manual spec request failed: HTTP ${response.status}`)
   }
   return (await response.json()) as Spec
 }

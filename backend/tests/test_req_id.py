@@ -6,6 +6,7 @@ from app.models.need import Need
 from app.models.project import Project
 from app.models.spec import Spec
 from app.seed.run import backfill_missing_req_ids, seed_reference_data
+from app.services.layer_service import LayerNotAllowedForParentError
 from app.services.spec_service import create_spec_for_need, create_spec_for_parent_spec, update_spec_text
 
 
@@ -34,6 +35,79 @@ def test_req_id_assignment_sequences_per_project_and_layer(db_session: Session) 
 
     assert first.req_id == "REQ-SYS-0001"
     assert second.req_id == "REQ-SYS-0002"
+    assert child.req_id == "REQ-SYSA-0001"
+
+
+def test_create_spec_defaults_preserve_ai_pending_path(db_session: Session) -> None:
+    """Default create parameters keep AI-accept behavior unchanged."""
+    _project, need, system_req, _system_arch = seed_project_need(db_session)
+
+    spec = create_spec_for_need(db_session, need.id, " Generated ", system_req.id)
+
+    assert spec.text == "Generated"
+    assert spec.source == "ai"
+    assert spec.status == "pending"
+    assert spec.req_id == "REQ-SYS-0001"
+
+
+def test_manual_spec_creation_sets_source_status_req_id_and_layer(db_session: Session) -> None:
+    """Manual spec creation reuses create service with accepted/manual values."""
+    _project, need, system_req, _system_arch = seed_project_need(db_session)
+
+    spec = create_spec_for_need(
+        db_session,
+        need.id,
+        "Manual requirement",
+        system_req.id,
+        source="manual",
+        status="accepted",
+    )
+
+    assert spec.text == "Manual requirement"
+    assert spec.source == "manual"
+    assert spec.status == "accepted"
+    assert spec.layer_id == system_req.id
+    assert spec.req_id == "REQ-SYS-0001"
+
+
+def test_manual_create_rejects_blank_and_disallowed_layer(db_session: Session) -> None:
+    """Create service rejects blank text and reuses layer validation."""
+    _project, need, system_req, system_arch = seed_project_need(db_session)
+
+    try:
+        create_spec_for_need(db_session, need.id, "   ", system_req.id)
+    except ValueError as error:
+        assert str(error) == "Spec statement must not be blank"
+    else:
+        raise AssertionError("blank spec text should fail")
+
+    try:
+        create_spec_for_need(db_session, need.id, "Bad layer", system_arch.id, source="manual", status="accepted")
+    except LayerNotAllowedForParentError as error:
+        assert error.target_layer_id == system_arch.id
+    else:
+        raise AssertionError("disallowed layer should fail")
+
+
+def test_manual_child_spec_inherits_need_and_assigns_req_id(db_session: Session) -> None:
+    """Manual child specs inherit need_id and get an ID for the child layer."""
+    _project, need, system_req, system_arch = seed_project_need(db_session)
+    parent = create_spec_for_need(db_session, need.id, "Parent", system_req.id)
+
+    child = create_spec_for_parent_spec(
+        db_session,
+        parent.id,
+        "Manual child",
+        system_arch.id,
+        source="manual",
+        status="accepted",
+    )
+
+    assert child.need_id == parent.need_id
+    assert child.parent_spec_id == parent.id
+    assert child.layer_id == system_arch.id
+    assert child.source == "manual"
+    assert child.status == "accepted"
     assert child.req_id == "REQ-SYSA-0001"
 
 

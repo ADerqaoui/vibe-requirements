@@ -87,6 +87,125 @@ async def test_spec_tree_includes_layer_badges(api_app: FastAPI, db_session: Ses
 
 
 @pytest.mark.asyncio
+async def test_manual_need_spec_api_creates_accepted_manual_spec(
+    api_app: FastAPI,
+    db_session: Session,
+) -> None:
+    """Manual Need route creates an accepted manual spec with req_id."""
+    need_id, _other_need_id = seed_need_with_layer(db_session)
+    layer = db_session.query(Layer).filter_by(name="System Requirement").one()
+
+    transport = ASGITransport(app=api_app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post(
+            f"/api/needs/{need_id}/specs/manual",
+            json={"text": " Manual top-level ", "target_layer_id": layer.id},
+        )
+        tree_response = await client.get(f"/api/needs/{need_id}/spec-tree")
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["statement"] == "Manual top-level"
+    assert body["source"] == "manual"
+    assert body["status"] == "accepted"
+    assert body["req_id"] == "REQ-SYS-0001"
+    assert body["layer_id"] == layer.id
+    assert tree_response.json()[0]["source"] == "manual"
+    assert tree_response.json()[0]["req_id"] == "REQ-SYS-0001"
+
+
+@pytest.mark.asyncio
+async def test_manual_child_spec_api_creates_accepted_manual_child(
+    api_app: FastAPI,
+    db_session: Session,
+) -> None:
+    """Manual child route creates accepted manual specs under parent Specs."""
+    need_id, _other_need_id = seed_need_with_layer(db_session)
+    parent_layer = db_session.query(Layer).filter_by(name="System Requirement").one()
+    child_layer = db_session.query(Layer).filter_by(name="System Architecture").one()
+    parent = Spec(need_id=need_id, layer_id=parent_layer.id, text="Parent", source="ai", req_id="REQ-SYS-0001")
+    db_session.add(parent)
+    db_session.commit()
+
+    transport = ASGITransport(app=api_app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post(
+            f"/api/specs/{parent.id}/specs/manual",
+            json={"text": "Manual child", "target_layer_id": child_layer.id},
+        )
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["need_id"] == need_id
+    assert body["parent_spec_id"] == parent.id
+    assert body["source"] == "manual"
+    assert body["status"] == "accepted"
+    assert body["req_id"] == "REQ-SYSA-0001"
+    assert body["layer_id"] == child_layer.id
+
+
+@pytest.mark.asyncio
+async def test_manual_spec_api_rejects_blank_disallowed_and_missing(
+    api_app: FastAPI,
+    db_session: Session,
+) -> None:
+    """Manual routes return 422 for invalid input and 404 for missing parents."""
+    need_id, _other_need_id = seed_need_with_layer(db_session)
+    system_req = db_session.query(Layer).filter_by(name="System Requirement").one()
+    system_arch = db_session.query(Layer).filter_by(name="System Architecture").one()
+    parent = Spec(need_id=need_id, layer_id=system_req.id, text="Parent", source="ai", req_id="REQ-SYS-0001")
+    db_session.add(parent)
+    db_session.commit()
+
+    transport = ASGITransport(app=api_app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        blank_response = await client.post(
+            f"/api/needs/{need_id}/specs/manual",
+            json={"text": "   ", "target_layer_id": system_req.id},
+        )
+        bad_layer_response = await client.post(
+            f"/api/needs/{need_id}/specs/manual",
+            json={"text": "Bad layer", "target_layer_id": system_arch.id},
+        )
+        missing_need_response = await client.post(
+            "/api/needs/999/specs/manual",
+            json={"text": "Missing", "target_layer_id": system_req.id},
+        )
+        missing_parent_response = await client.post(
+            "/api/specs/999/specs/manual",
+            json={"text": "Missing", "target_layer_id": system_arch.id},
+        )
+        bad_child_layer_response = await client.post(
+            f"/api/specs/{parent.id}/specs/manual",
+            json={"text": "Bad child", "target_layer_id": system_req.id},
+        )
+
+    assert blank_response.status_code == 422
+    assert bad_layer_response.status_code == 422
+    assert bad_layer_response.json()["error"] == "layer_not_allowed_for_parent"
+    assert missing_need_response.status_code == 404
+    assert missing_parent_response.status_code == 404
+    assert bad_child_layer_response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_ai_accept_route_still_creates_pending_ai_spec(
+    api_app: FastAPI,
+    db_session: Session,
+) -> None:
+    """Existing AI-accept route keeps source/status behavior."""
+    need_id, _other_need_id = seed_need_with_layer(db_session)
+
+    transport = ASGITransport(app=api_app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post(f"/api/needs/{need_id}/specs", json={"statement": "AI candidate"})
+
+    assert response.status_code == 201
+    assert response.json()["source"] == "ai"
+    assert response.json()["status"] == "pending"
+
+
+@pytest.mark.asyncio
 async def test_specs_api_edits_text_and_preserves_identity(
     api_app: FastAPI,
     db_session: Session,
