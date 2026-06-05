@@ -26,6 +26,7 @@ function errorMessage(error: unknown): string {
 
 export function ProjectActions({ projectId, projectName }: ProjectActionsProps) {
   const [error, setError] = useState<string | null>(null)
+  const [includeInspections, setIncludeInspections] = useState(true)
   const [isExporting, setIsExporting] = useState(false)
 
   async function handleExport() {
@@ -34,7 +35,7 @@ export function ProjectActions({ projectId, projectName }: ProjectActionsProps) 
     }
     setIsExporting(true)
     try {
-      const blob = await fetchProjectMarkdown(projectId)
+      const blob = await fetchProjectMarkdown(projectId, includeInspections)
       const url = URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.href = url
@@ -53,6 +54,14 @@ export function ProjectActions({ projectId, projectName }: ProjectActionsProps) 
 
   return (
     <div className="mt-3">
+      <label className="mb-2 flex items-center gap-2 text-sm text-neutral-700">
+        <input
+          checked={includeInspections}
+          onChange={(event) => setIncludeInspections(event.target.checked)}
+          type="checkbox"
+        />
+        Include inspection findings
+      </label>
       <button
         className="rounded-md border border-neutral-300 px-3 py-2 text-sm text-neutral-900 disabled:text-neutral-400"
         disabled={projectId === null || isExporting}

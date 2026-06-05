@@ -41,7 +41,8 @@ describe('ProjectActions', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Export Markdown' }))
 
     await waitFor(() => expect(clickSpy).toHaveBeenCalled())
-    expect(fetch).toHaveBeenCalledWith('/api/projects/7/export.md')
+    expect(screen.getByLabelText('Include inspection findings')).toBeChecked()
+    expect(fetch).toHaveBeenCalledWith('/api/projects/7/export.md?include_inspections=true')
     expect(createdLink?.download).toBe('brake-controller.md')
     expect(URL.createObjectURL).toHaveBeenCalled()
     expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:export')
@@ -51,5 +52,15 @@ describe('ProjectActions', () => {
     render(<ProjectActions projectId={null} projectName={null} />)
 
     expect(screen.getByRole('button', { name: 'Export Markdown' })).toBeDisabled()
+  })
+
+  it('passes include_inspections=false when unchecked', async () => {
+    render(<ProjectActions projectId={7} projectName="Brake Controller" />)
+
+    fireEvent.click(screen.getByLabelText('Include inspection findings'))
+    fireEvent.click(screen.getByRole('button', { name: 'Export Markdown' }))
+
+    await waitFor(() => expect(clickSpy).toHaveBeenCalled())
+    expect(fetch).toHaveBeenCalledWith('/api/projects/7/export.md?include_inspections=false')
   })
 })
