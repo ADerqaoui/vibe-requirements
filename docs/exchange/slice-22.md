@@ -31,3 +31,6 @@
 
 ## User — decisions
 - [User — YYYY-MM-DD] decision — rationale
+
+## Claude — final conformance
+- [Claude — 2026-06-05] APPROVE — generated text is now real requirements: editable, with stable citable IDs. Migration discipline was exactly right (one nullable column, zero data steps; backfill in the seed runner where it self-heals on restart). req_id immutability across edits is the key property and is tested; per-(project,layer) sequencing is sound for traceability. Text-only edit with source→manual is correctly scoped. Two concerns logged + deferred: req_id uniqueness as a DB constraint (allocation-enforced is fine single-user; a unique index belongs in a hardening migration), and revision history (spec_revisions is the audit slice). Manual create-from-scratch deliberately excluded — it's the next slice. Clear to merge.
