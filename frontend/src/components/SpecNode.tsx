@@ -4,7 +4,9 @@ import { updateSpecText } from '../api/specs'
 import type { ClassificationVote } from '../types/classification'
 import type { SpecInspection } from '../types/inspection'
 import type { SpecTreeNode } from '../types/spec'
+import { ManualSpecForm } from './ManualSpecForm'
 import { SpecEditor } from './SpecEditor'
+import { SpecInspectionDetails } from './SpecInspectionDetails'
 
 type SpecNodeProps = {
   classifyingSpecIds: Set<number>
@@ -40,16 +42,6 @@ function statusClasses(status: string): string {
   return 'bg-neutral-100 text-neutral-700'
 }
 
-function verdictClasses(verdict: string): string {
-  if (verdict === 'PASS') {
-    return 'bg-green-100 text-green-700'
-  }
-  if (verdict === 'FAIL') {
-    return 'bg-red-100 text-red-700'
-  }
-  return 'bg-amber-100 text-amber-700'
-}
-
 export function SpecNode({
   classifyingSpecIds,
   complexityBySpec,
@@ -71,6 +63,7 @@ export function SpecNode({
   const status = statusBySpec[spec.id] ?? spec.status
   const isSelected = selectedSpecId === spec.id
   const isAutoClassifying = classifyingSpecIds.has(spec.id)
+  const [isAdding, setIsAdding] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
 
   async function handleSave(text: string) {
@@ -139,6 +132,9 @@ export function SpecNode({
         <button className="text-xs font-medium text-neutral-900" onClick={() => setIsEditing(true)} type="button">
           Edit
         </button>
+        <button className="text-xs font-medium text-neutral-900" onClick={() => setIsAdding(true)} type="button">
+          Add requirement
+        </button>
         <button className="text-xs text-green-700" onClick={() => onDecide(spec, 'accepted')} type="button">
           Accept
         </button>
@@ -146,30 +142,17 @@ export function SpecNode({
           Reject
         </button>
       </div>
-      {inspection && (
-        <div className="mt-3 rounded-md border border-neutral-200 bg-neutral-50 p-3">
-          {inspection.selected_model_name && (
-            <p className="mb-2 text-xs text-neutral-600">Inspected with: {inspection.selected_model_name}</p>
-          )}
-          {inspection.selected_prompt_name && (
-            <p className="mb-2 text-xs text-neutral-600">Prompt: {inspection.selected_prompt_name}</p>
-          )}
-          <ul className="space-y-1">
-            {inspection.findings.criteria.map((criterion) => (
-              <li className="flex flex-wrap gap-2 text-xs" key={criterion.name}>
-                <span className={`rounded px-2 py-0.5 font-medium ${verdictClasses(criterion.verdict)}`}>
-                  {criterion.verdict}
-                </span>
-                <span className="font-medium text-neutral-800">{criterion.name}</span>
-                <span className="text-neutral-600">{criterion.note}</span>
-              </li>
-            ))}
-          </ul>
-          {inspection.findings.summary && (
-            <p className="mt-2 text-xs text-neutral-600">{inspection.findings.summary}</p>
-          )}
-        </div>
+      {isAdding && (
+        <ManualSpecForm
+          onCancel={() => setIsAdding(false)}
+          onCreated={() => {
+            setIsAdding(false)
+            onSpecChanged?.()
+          }}
+          parent={{ kind: 'spec', id: spec.id, layer_id: spec.layer_id }}
+        />
       )}
+      {inspection && <SpecInspectionDetails inspection={inspection} />}
       {spec.children.length > 0 && (
         <ul className="mt-2 space-y-2 border-l border-neutral-200 pl-4">
           {spec.children.map((child) => (

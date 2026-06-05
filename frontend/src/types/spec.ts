@@ -19,6 +19,11 @@ export type SpecPayload = {
   target_layer_id: number
 }
 
+export type ManualSpecPayload = {
+  text: string
+  target_layer_id: number
+}
+
 export type SpecTreeNode = {
   id: number
   req_id?: string | null

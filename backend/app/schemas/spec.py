@@ -18,6 +18,22 @@ class SpecCreate(BaseModel):
         return normalized_value
 
 
+class ManualSpecCreate(BaseModel):
+    """Request body for manually authoring a spec."""
+
+    text: str = Field(min_length=1)
+    target_layer_id: int | None = None
+
+    @field_validator("text")
+    @classmethod
+    def normalize_text(cls, value: str) -> str:
+        """Trim and reject blank text."""
+        normalized_value = value.strip()
+        if normalized_value == "":
+            raise ValueError("Spec text must not be blank")
+        return normalized_value
+
+
 class SpecOut(BaseModel):
     """Spec response body."""
 

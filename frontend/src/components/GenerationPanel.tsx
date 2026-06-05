@@ -13,6 +13,7 @@ import { GenerationCandidates } from './GenerationCandidates'
 import { GenerationForm } from './GenerationForm'
 import GenerationPanelHeader from './GenerationPanelHeader'
 import { GenerationSpecSection } from './GenerationSpecSection'
+import { ManualSpecForm } from './ManualSpecForm'
 
 type GenerationPanelProps = {
   rootNeedId?: number | null
@@ -35,6 +36,7 @@ export function GenerationPanel({
   const generationParent = parent ?? parentFromNeedId(effectiveRootNeedId)
   const [error, setError] = useState<string | null>(null)
   const [ceilingBanner, setCeilingBanner] = useState<CostCeilingBannerState>(null)
+  const [isAddingManualSpec, setIsAddingManualSpec] = useState(false)
   const handleError = useCallback((unknownError: unknown) => {
     setError(errorMessage(unknownError))
   }, [])
@@ -90,6 +92,29 @@ export function GenerationPanel({
         />
       )}
       {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+      {generationParent.kind === 'need' && (
+        <div className="mt-3">
+          <button
+            className="rounded border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-900"
+            onClick={() => setIsAddingManualSpec(true)}
+            type="button"
+          >
+            Add requirement
+          </button>
+          {isAddingManualSpec && (
+            <ManualSpecForm
+              onCancel={() => setIsAddingManualSpec(false)}
+              onCreated={() => {
+                setIsAddingManualSpec(false)
+                if (effectiveRootNeedId !== null) {
+                  void loadSpecTree(effectiveRootNeedId)
+                }
+              }}
+              parent={generationParent}
+            />
+          )}
+        </div>
+      )}
       <GenerationForm
         allowedLayers={allowedLayers}
         count={count}

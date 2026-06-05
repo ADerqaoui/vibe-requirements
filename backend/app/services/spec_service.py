@@ -60,17 +60,20 @@ def create_spec_for_need(
     need_id: int,
     statement: str,
     target_layer_id: int | None = None,
+    source: str = "ai",
+    status: str = "pending",
 ) -> Spec:
     """Persist one generated child spec under a Need with pending lifecycle status."""
+    spec_text = _normalize_spec_text(statement)
     need = get_need(db, need_id)
     layer = resolve_target_layer_for_need(db, target_layer_id)
     spec = Spec(
         need_id=need.id,
         parent_spec_id=None,
         layer_id=layer.id,
-        text=statement,
-        status="pending",
-        source="ai",
+        text=spec_text,
+        status=status,
+        source=source,
         req_id=next_req_id(db, need.project_id, layer),
     )
     db.add(spec)
@@ -84,8 +87,11 @@ def create_spec_for_parent_spec(
     spec_id: int,
     statement: str,
     target_layer_id: int | None = None,
+    source: str = "ai",
+    status: str = "pending",
 ) -> Spec:
     """Persist one generated child Spec under another Spec."""
+    spec_text = _normalize_spec_text(statement)
     parent = get_spec(db, spec_id)
     need = get_need(db, parent.need_id)
     layer = resolve_target_layer_for_spec(db, parent.layer_id, target_layer_id)
@@ -93,9 +99,9 @@ def create_spec_for_parent_spec(
         need_id=parent.need_id,
         parent_spec_id=parent.id,
         layer_id=layer.id,
-        text=statement,
-        status="pending",
-        source="ai",
+        text=spec_text,
+        status=status,
+        source=source,
         req_id=next_req_id(db, need.project_id, layer),
     )
     db.add(spec)
@@ -132,3 +138,11 @@ def ensure_need_exists(db: Session, need_id: int) -> Need:
         return get_need(db, need_id)
     except NeedNotFoundError:
         raise
+
+
+def _normalize_spec_text(statement: str) -> str:
+    """Trim and reject blank Spec text."""
+    normalized_statement = statement.strip()
+    if normalized_statement == "":
+        raise ValueError("Spec statement must not be blank")
+    return normalized_statement
