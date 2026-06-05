@@ -31,3 +31,6 @@
 
 ## User — decisions
 - [User — YYYY-MM-DD] decision — rationale
+
+## Claude — final conformance
+- [Claude — 2026-06-05] APPROVE — the authoring story is now complete: alongside slice-22 editing, a user can write a requirement the AI never produced. The right call was parametrizing the existing create functions rather than duplicating them — manual creation reuses next_req_id and the slice-18 layer resolvers verbatim, so hand-authored specs are validated against the same V-model rules as generated ones (a human typing the text doesn't get to bypass layer_parents) and carry real IDs. The default params keep the AI-accept path byte-for-byte unchanged, regression-tested. Manual specs being first-class tree nodes (editable, classifiable, inspectable, generatable-from, exportable) with no special handling is exactly the property you want — no second code path to maintain. The spec_serialization.py extraction was a good incidental cleanup that relieved the line-count pressure on the spec routes/nodes. Two concerns logged + deferred: authored-vs-reviewed accept distinction (for the audit-history slice — DC1 here reinforces that need), and bulk creation/import. Clear to merge.
