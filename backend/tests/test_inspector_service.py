@@ -209,3 +209,43 @@ async def test_inspector_service_passes_spec_layer_to_render(db_session: Session
 
     log = db_session.scalars(select(CallLog)).one()
     assert log.prompt_id == prompt.id
+
+
+@pytest.mark.asyncio
+async def test_inspector_service_uses_explicit_prompt_variant(db_session: Session) -> None:
+    """Explicit prompt_id selects the inspection variant and reports it."""
+    spec_id, model = seed_spec_and_model(db_session)
+    prompt = Prompt(
+        task="inspect_spec",
+        name="EARS",
+        version=1,
+        enabled=1,
+        template="Explicit inspect {spec_statement}",
+    )
+    db_session.add(prompt)
+    db_session.commit()
+
+    row = await inspect_spec(
+        db=db_session,
+        spec_id=spec_id,
+        model=model,
+        gateway=FakeGateway(
+            GatewayResult(
+                "- Clarity: PASS — clear\n"
+                "- Measurability: PASS — measurable\n"
+                "- Testability: PASS — testable\n"
+                "- Atomicity: PASS — one thing\n"
+                "- Ambiguity-free: PASS — precise",
+                10,
+                5,
+            )
+        ),
+        runtime=GatewayRuntime(retry_count=0),
+        prompt_id=prompt.id,
+    )
+
+    log = db_session.scalars(select(CallLog)).one()
+    assert row.selected_prompt_id == prompt.id
+    assert row.selected_prompt_name == "EARS"
+    assert log.prompt_id == prompt.id
+    assert "Explicit inspect The system shall brake." in log.rendered_prompt

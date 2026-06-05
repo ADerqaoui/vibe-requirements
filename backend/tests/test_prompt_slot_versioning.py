@@ -159,10 +159,10 @@ def test_list_versions_returns_all_slots_ordered_by_layer_then_version(db_sessio
     """Version history spans every slot and keeps slot grouping stable."""
     layer = add_layer(db_session, "Layer", 10)
     db_session.add_all([
-        Prompt(task="task", name="global v1", version=1, enabled=0, template="global v1"),
-        Prompt(task="task", name="global v2", version=2, enabled=1, template="global v2"),
-        Prompt(task="task", name="layer v1", layer_id=layer.id, version=1, enabled=0, template="layer v1"),
-        Prompt(task="task", name="layer v2", layer_id=layer.id, version=2, enabled=1, template="layer v2"),
+        Prompt(task="task", name="global", version=1, enabled=0, template="global v1"),
+        Prompt(task="task", name="global", version=2, enabled=1, template="global v2"),
+        Prompt(task="task", name="layer", layer_id=layer.id, version=1, enabled=0, template="layer v1"),
+        Prompt(task="task", name="layer", layer_id=layer.id, version=2, enabled=1, template="layer v2"),
     ])
     db_session.commit()
 

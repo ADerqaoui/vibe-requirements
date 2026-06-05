@@ -7,10 +7,24 @@ from sqlalchemy.orm import Session
 from app.db import get_db
 from app.models.layer import Layer
 from app.models.prompt import Prompt
-from app.schemas.prompt import PromptRead, PromptVersionCreate, PromptVersionRead
+from app.schemas.prompt import (
+    PromptDefaultSet,
+    PromptRead,
+    PromptVariantRead,
+    PromptVersionCreate,
+    PromptVersionRead,
+)
 from app.services.prompt_errors import PromptNotFoundError, PromptTemplateInvalidError
 from app.services.layer_service import NEED_LAYER_NAME
-from app.services.prompt_service import create_version, list_active, list_versions, promote
+from app.services.prompt_service import (
+    create_version,
+    get_default_variant_name,
+    list_active,
+    list_variants,
+    list_versions,
+    promote,
+    set_default,
+)
 
 router = APIRouter(prefix="/prompts", tags=["prompts"])
 
@@ -35,6 +49,32 @@ async def list_prompt_versions_route(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Prompt task not found") from error
     layer_names = _layer_names(db, prompts)
     return [_read_version(prompt, layer_names) for prompt in prompts]
+
+
+@router.get("/{task}/variants", response_model=list[PromptVariantRead])
+async def list_prompt_variants_route(
+    task: str,
+    layer_id: int | None = None,
+    db: Session = Depends(get_db),
+) -> list[PromptVariantRead]:
+    """Return enabled variants accepted for one requested prompt group."""
+    variants = list_variants(db, task, layer_id)
+    layer_names = _layer_names(db, variants)
+    default_layer_id = _default_layer_id(variants, layer_id)
+    default_name = get_default_variant_name(db, task, default_layer_id)
+    return [
+        PromptVariantRead(
+            name=variant.name,
+            version=variant.version,
+            template=variant.template,
+            is_default=variant.layer_id == default_layer_id and variant.name == default_name,
+            prompt_id=variant.id,
+            layer_id=variant.layer_id,
+            layer_name=layer_names.get(variant.layer_id) if variant.layer_id is not None else None,
+            scope_label=layer_names.get(variant.layer_id) if variant.layer_id is not None else "Global",
+        )
+        for variant in variants
+    ]
 
 
 @router.post("/{task}/versions", response_model=PromptVersionRead)
@@ -80,6 +120,19 @@ async def promote_prompt_route(
     return _read_version(prompt, _layer_names(db, [prompt]))
 
 
+@router.post("/set-default", response_model=PromptDefaultSet)
+async def set_default_prompt_route(
+    payload: PromptDefaultSet,
+    db: Session = Depends(get_db),
+) -> PromptDefaultSet:
+    """Set one task/layer default prompt variant."""
+    try:
+        set_default(db, payload.task, payload.layer_id, payload.name)
+    except PromptNotFoundError as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Prompt variant not found") from error
+    return payload
+
+
 def _layer_names(db: Session, prompts: list[Prompt]) -> dict[int, str]:
     """Return layer display names for prompt rows."""
     layer_ids = sorted({prompt.layer_id for prompt in prompts if prompt.layer_id is not None})
@@ -99,6 +152,13 @@ def _read_version(prompt: Prompt, layer_names: dict[int, str]) -> PromptVersionR
     """Build a prompt version response with layer name."""
     layer_name = layer_names.get(prompt.layer_id) if prompt.layer_id is not None else None
     return PromptVersionRead.model_validate(prompt).model_copy(update={"layer_name": layer_name})
+
+
+def _default_layer_id(variants: list[Prompt], layer_id: int | None) -> int | None:
+    """Return the group whose default should be preselected."""
+    if layer_id is not None and any(variant.layer_id == layer_id for variant in variants):
+        return layer_id
+    return None
 
 
 def _invalid_layer_response(db: Session, layer_id: int) -> JSONResponse | None:

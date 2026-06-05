@@ -1,11 +1,17 @@
+import { setPromptDefault } from '../api/prompts'
 import type { Layer } from '../types/layer'
 import type { Prompt } from '../types/prompt'
 import { PromptEditor } from './PromptEditor'
 import { PromptHistory } from './PromptHistory'
 
+export type PromptVariantEntry = Prompt & {
+  prompt_id: number
+  is_default: boolean
+}
+
 type PromptTaskGroupProps = {
   task: string
-  prompts: Prompt[]
+  prompts: PromptVariantEntry[]
   layers: Layer[]
   editingKey: string | null
   historyKey: string | null
@@ -17,7 +23,7 @@ type PromptTaskGroupProps = {
 }
 
 function slotKey(prompt: Prompt): string {
-  return `${prompt.task}:${prompt.layer_id ?? 'global'}`
+  return `${prompt.task}:${prompt.layer_id ?? 'global'}:${prompt.name}`
 }
 
 function scopeLabel(prompt: Prompt): string {
@@ -40,6 +46,11 @@ export function PromptTaskGroup({
   const existingLayerIds = new Set(prompts.flatMap((prompt) => (prompt.layer_id === null ? [] : [prompt.layer_id])))
   const availableLayers = layers.filter((layer) => layer.name !== 'Need' && !existingLayerIds.has(layer.id))
   const addKey = `${task}:add-layer`
+  const addVariantKey = (prompt: Prompt) => `${prompt.task}:${prompt.layer_id ?? 'global'}:add-variant`
+
+  function defaultVariant(prompt: PromptVariantEntry) {
+    void setPromptDefault({ task: prompt.task, layer_id: prompt.layer_id, name: prompt.name }).then(onChanged)
+  }
 
   return (
     <li className="rounded-md border border-neutral-200 p-3">
@@ -64,9 +75,26 @@ export function PromptTaskGroup({
                   <p className="text-sm font-medium text-neutral-950">{prompt.name}</p>
                   <p className="text-xs text-neutral-500">
                     {scopeLabel(prompt)} · v{prompt.version} · updated {prompt.updated_at}
+                    {prompt.is_default ? ' · default' : ''}
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
+                  {!prompt.is_default ? (
+                    <button
+                      className="rounded border border-neutral-300 px-2 py-1 text-xs"
+                      onClick={() => defaultVariant(prompt)}
+                      type="button"
+                    >
+                      Set default
+                    </button>
+                  ) : null}
+                  <button
+                    className="rounded border border-neutral-300 px-2 py-1 text-xs"
+                    onClick={() => onEdit(addVariantKey(prompt))}
+                    type="button"
+                  >
+                    Add variant
+                  </button>
                   <button
                     className="rounded border border-neutral-300 px-2 py-1 text-xs"
                     onClick={() => onEdit(key)}
@@ -94,7 +122,16 @@ export function PromptTaskGroup({
                 <PromptEditor prompt={prompt} onCancel={onCancelEdit} onSaved={onChanged} />
               ) : null}
               {historyKey === key ? (
-                <PromptHistory task={prompt.task} onClose={onCloseHistory} onPromoted={onChanged} />
+                <PromptHistory
+                  task={prompt.task}
+                  layerId={prompt.layer_id}
+                  name={prompt.name}
+                  onClose={onCloseHistory}
+                  onPromoted={onChanged}
+                />
+              ) : null}
+              {editingKey === addVariantKey(prompt) ? (
+                <PromptEditor prompt={prompt} mode="add-variant" onCancel={onCancelEdit} onSaved={onChanged} />
               ) : null}
             </div>
           )

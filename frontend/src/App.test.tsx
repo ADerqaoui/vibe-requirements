@@ -76,6 +76,18 @@ describe('App router setting flow', () => {
         if (path === '/api/needs/1/blacklist' || path === '/api/prompts' || path === '/api/layers') {
           return jsonResponse([])
         }
+        if (path.includes('/api/prompts/') && path.includes('/variants')) {
+          return jsonResponse([{
+            name: 'Default',
+            version: 1,
+            template: 'Prompt',
+            is_default: true,
+            prompt_id: 9,
+            layer_id: null,
+            layer_name: null,
+            scope_label: 'Global',
+          }])
+        }
         if (path === '/api/cost-summary') {
           return jsonResponse({ currency: 'SEK', ceiling_sek: 50, month_spent_sek: 0, month_remaining_sek: 50, all_time_spent_sek: 0, by_provider: [], by_model: [] })
         }
@@ -94,17 +106,19 @@ describe('App router setting flow', () => {
     render(<App />)
 
     expect(await screen.findByLabelText('Generation model')).toBeInTheDocument()
-    expect(screen.getByLabelText('Inspection model')).toBeInTheDocument()
+    expect(await screen.findByLabelText('Inspection model')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('checkbox', { name: /Router/ }))
 
     expect(await screen.findAllByText('Auto (router)')).toHaveLength(2)
+    expect(await screen.findAllByText(/Auto \(default\)/)).toHaveLength(2)
     fireEvent.click(screen.getByRole('button', { name: 'Generate' }))
     fireEvent.click(screen.getByRole('button', { name: 'Inspect' }))
     expect(requestBodies.every((body) => !body.includes('model_id'))).toBe(true)
+    expect(requestBodies.every((body) => !body.includes('prompt_id'))).toBe(true)
 
     fireEvent.click(screen.getByRole('checkbox', { name: /Router/ }))
 
     expect(await screen.findByLabelText('Generation model')).toBeInTheDocument()
-    expect(screen.getByLabelText('Inspection model')).toBeInTheDocument()
+    expect(await screen.findByLabelText('Inspection model')).toBeInTheDocument()
   })
 })

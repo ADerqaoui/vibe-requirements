@@ -45,7 +45,15 @@ describe('PromptHistory', () => {
     ]
     vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(versions)))
 
-    render(<PromptHistory task="generate_spec_to_child" onClose={vi.fn()} onPromoted={onPromoted} />)
+    render(
+      <PromptHistory
+        task="generate_spec_to_child"
+        layerId={null}
+        name="Spec child"
+        onClose={vi.fn()}
+        onPromoted={onPromoted}
+      />,
+    )
 
     expect(await screen.findByText(/Global · v2/)).toBeInTheDocument()
     expect(screen.getByText('Need: {parent_statement}')).toBeInTheDocument()

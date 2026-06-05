@@ -22,3 +22,20 @@ export type PromptVersionCreate = {
   name?: string
   description?: string
 }
+
+export type PromptVariant = {
+  name: string
+  version: number
+  template: string
+  is_default: boolean
+  prompt_id: number
+  layer_id: number | null
+  layer_name: string | null
+  scope_label: string
+}
+
+export type PromptDefaultSet = {
+  task: string
+  layer_id?: number | null
+  name: string
+}

@@ -216,3 +216,36 @@ async def test_generation_service_filters_parsed_candidates_against_blacklist(
     )
 
     assert [candidate.statement for candidate in result.candidates] == ["Alert"]
+
+
+@pytest.mark.asyncio
+async def test_generation_service_uses_explicit_prompt_variant(db_session: Session) -> None:
+    """Explicit prompt_id selects that variant and reports it in the response."""
+    parent_id, model = seed_generation_parent(db_session, "need")
+    prompt = Prompt(
+        task="generate_need_to_spec",
+        name="EARS",
+        version=1,
+        enabled=1,
+        template="Explicit Need: {parent_statement}\nCount: {count}",
+    )
+    db_session.add(prompt)
+    db_session.commit()
+
+    result = await generate_for_parent(
+        db=db_session,
+        parent_kind="need",
+        parent_id=parent_id,
+        model=model,
+        gateway=FakeGateway(GatewayResult("1. Brake", 10, 8)),
+        count=1,
+        runtime=GenerationRuntime(retry_count=0),
+        prompt_id=prompt.id,
+    )
+
+    log = db_session.query(CallLog).order_by(CallLog.id.desc()).first()
+    assert result.selected_prompt_id == prompt.id
+    assert result.selected_prompt_name == "EARS"
+    assert log is not None
+    assert log.prompt_id == prompt.id
+    assert "Explicit Need: Stop safely" in log.rendered_prompt

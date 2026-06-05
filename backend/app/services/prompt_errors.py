@@ -27,3 +27,11 @@ class PromptRenderError(Exception):
     def __init__(self, reason: str):
         super().__init__(reason)
         self.reason = reason
+
+
+class PromptDisabledError(Exception):
+    """Raised when an explicit prompt selection points at a disabled row."""
+
+
+class PromptLayerMismatchError(Exception):
+    """Raised when an explicit prompt belongs to another specific layer."""

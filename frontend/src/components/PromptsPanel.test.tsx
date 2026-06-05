@@ -2,7 +2,6 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Prompt } from '../types/prompt'
 import { PromptsPanel } from './PromptsPanel'
-
 function jsonResponse(body: unknown): Response {
   return { ok: true, status: 200, json: async () => body } as Response
 }
@@ -11,6 +10,30 @@ const layers = [
   { id: 1, name: 'Need', kind: 'cross_cutting', discipline: null, sort_order: 0 },
   { id: 2, name: 'System Requirement', kind: 'cross_cutting', discipline: null, sort_order: 10 },
 ]
+
+function variantsFor(prompt: Prompt, isDefault = true) {
+  return [{
+    name: prompt.name, version: prompt.version, template: prompt.template,
+    is_default: isDefault,
+    prompt_id: prompt.version, layer_id: prompt.layer_id, layer_name: prompt.layer_name,
+    scope_label: prompt.layer_name ?? 'Global',
+  }]
+}
+
+function promptFixture(overrides: Partial<Prompt> = {}): Prompt {
+  return {
+    task: 'classify_spec',
+    name: 'Classify Spec',
+    description: null,
+    version: 1,
+    layer_id: null,
+    layer_name: null,
+    discipline_scope: null,
+    template: 'Specification: {spec_statement}',
+    updated_at: '2026-06-03 10:00:00',
+    ...overrides,
+  }
+}
 
 describe('PromptsPanel', () => {
   afterEach(() => {
@@ -25,30 +48,12 @@ describe('PromptsPanel', () => {
         if (path === '/api/layers') {
           return jsonResponse(layers)
         }
-        return jsonResponse([
-          {
-            task: 'generate_need_to_spec',
-            name: 'Generate Need to Spec',
-            description: 'Generate child specifications from a Need.',
-            version: 1,
-            layer_id: null,
-            layer_name: null,
-            discipline_scope: null,
-            template: 'Need: {parent_statement}',
-            updated_at: '2026-06-02 10:00:00',
-          },
-          {
-            task: 'classify_spec',
-            name: 'Classify Spec',
-            description: null,
-            version: 2,
-            layer_id: 2,
-            layer_name: 'System Requirement',
-            discipline_scope: null,
-            template: 'Specification: {spec_statement}',
-            updated_at: '2026-06-02 11:00:00',
-          },
-        ])
+        if (path.includes('/variants')) {
+          const prompts = basePrompts()
+          const prompt = path.includes('generate_need_to_spec') ? prompts[0] : prompts[1]
+          return jsonResponse(variantsFor(prompt))
+        }
+        return jsonResponse(basePrompts())
       }),
     )
 
@@ -63,18 +68,57 @@ describe('PromptsPanel', () => {
     expect(screen.queryByText('Editable in a future slice.')).not.toBeInTheDocument()
   })
 
+  it('shows variants and sets the default', async () => {
+    let earsDefault = false
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const path = input.toString()
+        const method = init?.method ?? 'GET'
+        const prompt = basePrompts()[0]
+        if (path === '/api/layers') {
+          return jsonResponse(layers)
+        }
+        if (path === '/api/prompts' && method === 'GET') {
+          return jsonResponse([prompt])
+        }
+        if (path.includes('/variants')) {
+          return jsonResponse([
+            ...variantsFor(prompt, !earsDefault),
+            { name: 'EARS', version: 1, template: 'EARS {parent_statement}', is_default: earsDefault, prompt_id: 99, layer_id: null, layer_name: null, scope_label: 'Global' },
+          ])
+        }
+        if (path === '/api/prompts/set-default' && method === 'POST') {
+          expect(init?.body).toContain('"name":"EARS"')
+          earsDefault = true
+          return jsonResponse({ task: prompt.task, layer_id: null, name: 'EARS' })
+        }
+        return { ok: false, status: 500, json: async () => ({}) } as Response
+      }),
+    )
+
+    render(<PromptsPanel />)
+
+    expect(await screen.findByText('EARS')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Set default' }))
+    await waitFor(() => expect(screen.getByText(/v1 · updated .* · default/)).toBeInTheDocument())
+  })
+
+  function basePrompts(): Prompt[] {
+    return [
+      promptFixture({
+        task: 'generate_need_to_spec',
+        name: 'Generate Need to Spec',
+        description: 'Generate child specifications from a Need.',
+        template: 'Need: {parent_statement}',
+        updated_at: '2026-06-02 10:00:00',
+      }),
+      promptFixture({ version: 2, layer_id: 2, layer_name: 'System Requirement', updated_at: '2026-06-02 11:00:00' }),
+    ]
+  }
+
   it('refreshes active prompts after edit and promote', async () => {
-    let prompt = {
-      task: 'classify_spec',
-      name: 'Classify Spec',
-      description: null,
-      version: 1,
-      layer_id: null,
-      layer_name: null,
-      discipline_scope: null,
-      template: 'Specification: {spec_statement}',
-      updated_at: '2026-06-03 10:00:00',
-    }
+    let prompt = promptFixture()
     vi.stubGlobal(
       'fetch',
       vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -85,6 +129,9 @@ describe('PromptsPanel', () => {
         }
         if (path === '/api/layers' && method === 'GET') {
           return jsonResponse(layers)
+        }
+        if (path.includes('/variants') && method === 'GET') {
+          return jsonResponse(variantsFor(prompt))
         }
         if (path === '/api/prompts/classify_spec/versions' && method === 'POST') {
           prompt = { ...prompt, version: 2, template: 'Score {spec_statement}' }
@@ -117,17 +164,7 @@ describe('PromptsPanel', () => {
   })
 
   it('adds a layer variant with a layer picker and layer_id payload', async () => {
-    let prompts: Prompt[] = [{
-      task: 'classify_spec',
-      name: 'Classify Spec',
-      description: null,
-      version: 1,
-      layer_id: null,
-      layer_name: null,
-      discipline_scope: null,
-      template: 'Specification: {spec_statement}',
-      updated_at: '2026-06-03 10:00:00',
-    }]
+    let prompts: Prompt[] = [promptFixture()]
     vi.stubGlobal(
       'fetch',
       vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -138,6 +175,9 @@ describe('PromptsPanel', () => {
         }
         if (path === '/api/layers' && method === 'GET') {
           return jsonResponse(layers)
+        }
+        if (path.includes('/variants') && method === 'GET') {
+          return jsonResponse(prompts.flatMap((prompt) => variantsFor(prompt)))
         }
         if (path === '/api/prompts/classify_spec/versions' && method === 'POST') {
           expect(init?.body).toContain('"layer_id":2')

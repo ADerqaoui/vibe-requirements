@@ -128,6 +128,9 @@ export function SpecNode({
           {inspection.selected_model_name && (
             <p className="mb-2 text-xs text-neutral-600">Inspected with: {inspection.selected_model_name}</p>
           )}
+          {inspection.selected_prompt_name && (
+            <p className="mb-2 text-xs text-neutral-600">Prompt: {inspection.selected_prompt_name}</p>
+          )}
           <ul className="space-y-1">
             {inspection.findings.criteria.map((criterion) => (
               <li className="flex flex-wrap gap-2 text-xs" key={criterion.name}>

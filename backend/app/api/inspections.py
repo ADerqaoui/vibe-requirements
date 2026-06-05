@@ -22,7 +22,9 @@ from app.services.inspector_service import (
     resolve_inspector_model,
 )
 from app.services.model_service import get_model
+from app.services.prompt_errors import PromptDisabledError, PromptLayerMismatchError, PromptNotFoundError
 from app.services.router_service import RouterNoModelError, RouterTaskNotRoutedError
+from app.services.router_service import is_router_enabled
 
 router = APIRouter(tags=["inspections"])
 
@@ -56,11 +58,18 @@ async def inspect_spec_route(
                 retry_count=settings.llm_retry_count,
                 timeout_seconds=_timeout_for_provider(model.provider, settings),
             ),
+            prompt_id=None if is_router_enabled(db) else payload.prompt_id,
         )
     except ParseFindingsError as error:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(error)) from error
     except CostCeilingExceededError as error:
         return cost_ceiling_response(error)
+    except PromptNotFoundError as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Prompt not found") from error
+    except PromptDisabledError as error:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Prompt is disabled") from error
+    except PromptLayerMismatchError as error:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(error)) from error
     except GatewayError as error:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
@@ -90,6 +99,8 @@ def _inspection_out(db: Session, row: SpecInspection) -> SpecInspectionOut:
         model_id=row.model_id,
         selected_model_id=row.model_id,
         selected_model_name=model.name,
+        selected_prompt_id=getattr(row, "selected_prompt_id", None),
+        selected_prompt_name=getattr(row, "selected_prompt_name", None),
         findings=json.loads(row.findings),
         summary=row.summary,
         passes=row.passes,

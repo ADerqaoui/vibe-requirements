@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 import { fetchLayers } from '../api/layers'
-import { fetchPrompts } from '../api/prompts'
+import { fetchPrompts, fetchPromptVariants } from '../api/prompts'
 import type { Layer } from '../types/layer'
 import type { Prompt } from '../types/prompt'
-import { PromptTaskGroup } from './PromptTaskGroup'
+import { PromptTaskGroup, type PromptVariantEntry } from './PromptTaskGroup'
 
 function toErrorMessage(error: unknown): string {
   if (error instanceof Error) {
@@ -12,8 +12,8 @@ function toErrorMessage(error: unknown): string {
   return String(error)
 }
 
-function groupByTask(prompts: Prompt[]): Map<string, Prompt[]> {
-  const groups = new Map<string, Prompt[]>()
+function groupByTask(prompts: PromptVariantEntry[]): Map<string, PromptVariantEntry[]> {
+  const groups = new Map<string, PromptVariantEntry[]>()
   prompts.forEach((prompt) => {
     groups.set(prompt.task, [...(groups.get(prompt.task) ?? []), prompt])
   })
@@ -21,7 +21,7 @@ function groupByTask(prompts: Prompt[]): Map<string, Prompt[]> {
 }
 
 export function PromptsPanel() {
-  const [prompts, setPrompts] = useState<Prompt[]>([])
+  const [prompts, setPrompts] = useState<PromptVariantEntry[]>([])
   const [layers, setLayers] = useState<Layer[]>([])
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -30,7 +30,7 @@ export function PromptsPanel() {
 
   async function loadPrompts(shouldCancel: () => boolean = () => false) {
     try {
-      const [loadedPrompts, loadedLayers] = await Promise.all([fetchPrompts(), fetchLayers()])
+      const [loadedPrompts, loadedLayers] = await Promise.all([fetchPromptEntries(), fetchLayers()])
       if (shouldCancel()) {
         return
       }
@@ -89,4 +89,22 @@ export function PromptsPanel() {
       </ul>
     </section>
   )
+}
+
+async function fetchPromptEntries(): Promise<PromptVariantEntry[]> {
+  const defaults = await fetchPrompts()
+  const nestedEntries = await Promise.all(defaults.map(expandPromptVariants))
+  return nestedEntries.flat()
+}
+
+async function expandPromptVariants(prompt: Prompt): Promise<PromptVariantEntry[]> {
+  const variants = await fetchPromptVariants(prompt.task, prompt.layer_id)
+  return variants.filter((variant) => variant.layer_id === prompt.layer_id).map((variant) => ({
+    ...prompt,
+    name: variant.name,
+    version: variant.version,
+    template: variant.template,
+    prompt_id: variant.prompt_id,
+    is_default: variant.is_default,
+  }))
 }

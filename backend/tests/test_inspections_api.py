@@ -91,6 +91,9 @@ async def test_inspection_api_persists_and_lists_newest_first(
 ) -> None:
     """Inspection API persists rows and lists them newest-first."""
     spec_id, model_id = seed_spec_and_model(db_session)
+    prompt = Prompt(task="inspect_spec", name="EARS", version=1, enabled=1, template="Explicit {spec_statement}")
+    db_session.add(prompt)
+    db_session.commit()
     use_db_session(api_app, db_session)
 
     async def first_gateway_factory():
@@ -102,11 +105,11 @@ async def test_inspection_api_persists_and_lists_newest_first(
     transport = ASGITransport(app=api_app)
     api_app.dependency_overrides[get_gateway_factory] = first_gateway_factory
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        first = await client.post(f"/api/specs/{spec_id}/inspect", json={"model_id": model_id})
+        first = await client.post(f"/api/specs/{spec_id}/inspect", json={"model_id": model_id, "prompt_id": prompt.id})
 
     api_app.dependency_overrides[get_gateway_factory] = second_gateway_factory
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        second = await client.post(f"/api/specs/{spec_id}/inspect", json={"model_id": model_id})
+        second = await client.post(f"/api/specs/{spec_id}/inspect", json={"model_id": model_id, "prompt_id": prompt.id})
 
     first_row = db_session.get(SpecInspection, first.json()["id"])
     second_row = db_session.get(SpecInspection, second.json()["id"])
@@ -129,6 +132,8 @@ async def test_inspection_api_persists_and_lists_newest_first(
         "model_id",
         "selected_model_id",
         "selected_model_name",
+        "selected_prompt_id",
+        "selected_prompt_name",
         "findings",
         "summary",
         "passes",
@@ -142,9 +147,10 @@ async def test_inspection_api_persists_and_lists_newest_first(
     assert [item["id"] for item in listed.json()] == [first.json()["id"], second.json()["id"]]
     assert spec_tree.json()[0]["latest_inspection_id"] == listed.json()[0]["id"]
     logs = db_session.scalars(select(CallLog).order_by(CallLog.id)).all()
-    prompt = db_session.query(Prompt).filter_by(task="inspect_spec", version=1).one()
     assert {log.prompt_id for log in logs} == {prompt.id}
     assert {log.prompt_version for log in logs} == {prompt.version}
+    assert first.json()["selected_prompt_id"] == prompt.id
+    assert first.json()["selected_prompt_name"] == "EARS"
 
 
 @pytest.mark.asyncio

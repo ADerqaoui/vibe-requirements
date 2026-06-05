@@ -14,7 +14,8 @@ from app.services.blacklist_service import BlacklistService
 from app.services.gateway_service import GatewayRuntime, complete_model
 from app.services.layer_service import resolve_target_layer_for_need, resolve_target_layer_for_spec
 from app.services.model_service import ModelNotFoundError, get_model
-from app.services.prompt_service import render
+from app.services.prompt_selection import PromptSelectionContext
+from app.services.prompt_service import render_prompt, select_prompt
 from app.services.router_service import is_router_enabled, select_model
 
 ParentKind = Literal["need", "spec"]
@@ -60,6 +61,7 @@ async def generate_for_parent(
     count: int,
     runtime: GenerationRuntime,
     target_layer_id: int | None = None,
+    prompt_id: int | None = None,
     blacklist_service: BlacklistService | None = None,
 ) -> GenerationResult:
     """Generate stateless child spec candidates from a Need or Spec parent."""
@@ -71,11 +73,19 @@ async def generate_for_parent(
     )
     parent_statement = parent.statement if isinstance(parent, Need) else parent.text
     task = "generate_need_to_spec" if parent_kind == "need" else "generate_spec_to_child"
-    prompt = render(
+    selected_prompt = select_prompt(
         db,
         task,
         layer_id=target_layer.id,
-        discipline_scope=None,
+        context=PromptSelectionContext(
+            prompt_id=prompt_id,
+            parent_kind=parent_kind,
+            parent_id=parent_id,
+            layer_id=target_layer.id,
+        ),
+    )
+    prompt = render_prompt(
+        selected_prompt,
         parent_statement=parent_statement,
         count=count,
     )
@@ -111,6 +121,8 @@ async def generate_for_parent(
         ],
         selected_model_id=model.id,
         selected_model_name=model.name,
+        selected_prompt_id=prompt.prompt_id,
+        selected_prompt_name=prompt.prompt_name,
     )
 
 
@@ -122,6 +134,7 @@ async def generate_specs_for_need(
     count: int,
     runtime: GenerationRuntime,
     target_layer_id: int | None = None,
+    prompt_id: int | None = None,
 ) -> GenerationResult:
     """Generate stateless child spec candidates from a Need."""
     return await generate_for_parent(
@@ -133,6 +146,7 @@ async def generate_specs_for_need(
         count,
         runtime,
         target_layer_id=target_layer_id,
+        prompt_id=prompt_id,
     )
 
 

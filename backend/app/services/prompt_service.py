@@ -1,17 +1,31 @@
 """DB-backed prompt lookup and rendering."""
 from dataclasses import dataclass
 
-from sqlalchemy import and_, case, desc, func, or_, select, update
 from sqlalchemy.orm import Session
 
 from app.models.prompt import Prompt
-from app.models.layer import Layer
 from app.services.prompt_errors import (
+    PromptDisabledError,
+    PromptLayerMismatchError,
     PromptNotFoundError,
     PromptRenderError,
     PromptVariableMissingError,
 )
-from app.services.prompt_validation import validate_template
+from app.services.prompt_selection import PromptSelectionContext
+from app.services.prompt_variant_store import (
+    _active_in_slot,
+    _best_group_prompt,
+    _next_version,
+    _slot_filter,
+    _specificity_score,
+    create_version,
+    get_default_variant_name,
+    list_active,
+    list_variants,
+    list_versions,
+    promote,
+    set_default,
+)
 
 
 @dataclass(frozen=True)
@@ -21,6 +35,7 @@ class RenderedPrompt:
     text: str
     prompt_id: int
     prompt_version: int
+    prompt_name: str
 
 
 def get_active(
@@ -29,29 +44,39 @@ def get_active(
     layer_id: int | None = None,
     discipline_scope: str | None = None,
 ) -> Prompt:
-    """Return the most specific enabled prompt for one task."""
-    prompts = db.scalars(
-        select(Prompt)
-        .where(
-            Prompt.task == task,
-            Prompt.enabled == 1,
-            or_(Prompt.layer_id == layer_id, Prompt.layer_id.is_(None)),
-            or_(Prompt.discipline_scope == discipline_scope, Prompt.discipline_scope.is_(None)),
-        )
-        .order_by(desc(Prompt.version), desc(Prompt.id))
-    ).all()
-    prompt = max(
-        prompts,
-        key=lambda item: (
-            _specificity_score(item, layer_id, discipline_scope),
-            item.version,
-            item.id,
-        ),
-        default=None,
+    """Return the default variant in the most-specific enabled group."""
+    group_row = _best_group_prompt(db, task, layer_id, discipline_scope)
+    default_name = get_default_variant_name(db, task, group_row.layer_id)
+    row = (
+        _active_in_slot(db, task, group_row.layer_id, default_name, group_row.discipline_scope)
+        if default_name is not None
+        else None
     )
-    if prompt is None:
+    if row is None and group_row.discipline_scope is not None:
+        row = group_row
+    if row is None:
         raise PromptNotFoundError(task)
-    return prompt
+    return row
+
+
+def select_prompt(
+    db: Session,
+    task: str,
+    layer_id: int | None,
+    context: PromptSelectionContext,
+) -> Prompt:
+    """Select a prompt through the prompt-selection chokepoint."""
+    if context.prompt_id is None:
+        return get_active(db, task, layer_id=layer_id)
+    row = db.get(Prompt, context.prompt_id)
+    if row is None or row.task != task:
+        raise PromptNotFoundError(str(context.prompt_id))
+    active_row = _active_in_slot(db, row.task, row.layer_id, row.name, row.discipline_scope)
+    if not bool(row.enabled) or active_row is None or active_row.id != row.id:
+        raise PromptDisabledError(str(context.prompt_id))
+    if row.layer_id is not None and row.layer_id != layer_id:
+        raise PromptLayerMismatchError("prompt does not belong to the target layer")
+    return row
 
 
 def render(
@@ -62,138 +87,21 @@ def render(
     **variables: object,
 ) -> RenderedPrompt:
     """Render the active task prompt with Python str.format."""
-    prompt = get_active(db, task, layer_id=layer_id, discipline_scope=discipline_scope)
+    row = get_active(db, task, layer_id=layer_id, discipline_scope=discipline_scope)
+    return render_prompt(row, **variables)
+
+
+def render_prompt(prompt: Prompt, **variables: object) -> RenderedPrompt:
+    """Render a selected prompt row with Python str.format."""
     try:
         text = prompt.template.format(**variables)
     except KeyError as error:
         raise PromptVariableMissingError(str(error.args[0])) from error
     except (ValueError, IndexError) as error:
         raise PromptRenderError(str(error)) from error
-    return RenderedPrompt(text=text, prompt_id=prompt.id, prompt_version=prompt.version)
-
-
-def list_active(db: Session) -> list[Prompt]:
-    """Return one active prompt per task/layer slot in stable order."""
-    prompts = db.scalars(
-        select(Prompt)
-        .outerjoin(Layer, Layer.id == Prompt.layer_id)
-        .where(Prompt.enabled == 1)
-        .order_by(
-            Prompt.task,
-            case((Prompt.layer_id.is_(None), 0), else_=1),
-            Layer.sort_order,
-            Prompt.layer_id,
-            desc(Prompt.version),
-            desc(Prompt.id),
-        )
-    ).all()
-    active_by_slot: dict[tuple[str, int | None], Prompt] = {}
-    for prompt in prompts:
-        active_by_slot.setdefault((prompt.task, prompt.layer_id), prompt)
-    return list(active_by_slot.values())
-
-
-def list_versions(db: Session, task: str) -> list[Prompt]:
-    """Return all prompt versions for one task, grouped by slot."""
-    prompts = list(
-        db.scalars(
-            select(Prompt)
-            .outerjoin(Layer, Layer.id == Prompt.layer_id)
-            .where(Prompt.task == task)
-            .order_by(
-                case((Prompt.layer_id.is_(None), 0), else_=1),
-                Layer.sort_order,
-                Prompt.layer_id,
-                desc(Prompt.version),
-                desc(Prompt.id),
-            )
-        ).all()
+    return RenderedPrompt(
+        text=text,
+        prompt_id=prompt.id,
+        prompt_version=prompt.version,
+        prompt_name=prompt.name,
     )
-    if not prompts:
-        raise PromptNotFoundError(task)
-    return prompts
-
-
-def create_version(
-    db: Session,
-    task: str,
-    template: str,
-    layer_id: int | None = None,
-    name: str | None = None,
-    description: str | None = None,
-) -> Prompt:
-    """Insert a new active immutable version for an existing task/layer slot."""
-    slot_active = _active_in_slot(db, task, layer_id)
-    # A brand-new layer slot starts from the global active prompt's metadata by design.
-    source = slot_active if slot_active is not None else get_active(db, task)
-    validate_template(task, template)
-    next_version = _next_version(db, task, layer_id)
-    prompt = Prompt(
-        task=task,
-        name=name if name is not None else source.name,
-        description=description if description is not None else source.description,
-        layer_id=layer_id,
-        discipline_scope=None,
-        version=next_version,
-        enabled=1,
-        template=template,
-    )
-    try:
-        db.execute(update(Prompt).where(_slot_filter(task, layer_id)).values(enabled=0))
-        db.add(prompt)
-        db.commit()
-        db.refresh(prompt)
-    except Exception:
-        db.rollback()
-        raise
-    return prompt
-
-
-def promote(db: Session, prompt_id: int) -> Prompt:
-    """Promote a historical prompt version and disable its slot siblings."""
-    prompt = db.get(Prompt, prompt_id)
-    if prompt is None:
-        raise PromptNotFoundError(str(prompt_id))
-    try:
-        db.execute(update(Prompt).where(_slot_filter(prompt.task, prompt.layer_id)).values(enabled=0))
-        prompt.enabled = 1
-        db.commit()
-        db.refresh(prompt)
-    except Exception:
-        db.rollback()
-        raise
-    return prompt
-
-
-def _next_version(db: Session, task: str, layer_id: int | None) -> int:
-    """Return one more than the current maximum version for a slot."""
-    max_version = db.scalar(select(func.max(Prompt.version)).where(_slot_filter(task, layer_id)))
-    return int(max_version or 0) + 1
-
-
-def _active_in_slot(db: Session, task: str, layer_id: int | None) -> Prompt | None:
-    """Return the enabled prompt in the exact task/layer slot."""
-    return db.scalar(
-        select(Prompt)
-        .where(_slot_filter(task, layer_id), Prompt.enabled == 1)
-        .order_by(desc(Prompt.version), desc(Prompt.id))
-        .limit(1)
-    )
-
-def _slot_filter(task: str, layer_id: int | None):
-    """Return the task/layer slot predicate."""
-    if layer_id is None:
-        return and_(Prompt.task == task, Prompt.layer_id.is_(None))
-    return and_(Prompt.task == task, Prompt.layer_id == layer_id)
-
-
-def _specificity_score(
-    prompt: Prompt,
-    layer_id: int | None,
-    discipline_scope: str | None,
-) -> int:
-    """Score layer/discipline prompt specificity."""
-    layer_score = 2 if prompt.layer_id is not None and prompt.layer_id == layer_id else 0
-    discipline_match = prompt.discipline_scope is not None and prompt.discipline_scope == discipline_scope
-    discipline_score = 1 if discipline_match else 0
-    return layer_score + discipline_score

@@ -4,6 +4,7 @@ import type { CostCeilingBannerState } from '../hooks/useCostCeilingError'
 import { useGenerationActions } from '../hooks/useGenerationActions'
 import { useGenerationModels } from '../hooks/useGenerationModels'
 import { useParentSpecTree } from '../hooks/useParentSpecTree'
+import { usePromptVariants } from '../hooks/usePromptVariants'
 import { parentFromNeedId, type GenerationParent } from '../types/generationParent'
 import type { SpecTreeNode } from '../types/spec'
 import { errorMessage } from '../utils/errorMessage'
@@ -39,6 +40,12 @@ export function GenerationPanel({
   }, [])
   const { allowedLayers, selectedLayerId, setSelectedLayerId } = useAllowedChildLayers(generationParent, handleError)
   const { modelId, models, setModelId } = useGenerationModels(handleError)
+  const promptVariants = usePromptVariants(
+    generationParent?.kind === 'need' ? 'generate_need_to_spec' : 'generate_spec_to_child',
+    selectedLayerId,
+    handleError,
+    selectedLayerId !== null,
+  )
   const { clearSpecTree, loadSpecTree, setSpecComplexity, specs } = useParentSpecTree()
   const {
     allCandidatesBlocked,
@@ -51,6 +58,7 @@ export function GenerationPanel({
     handleReject,
     isGenerating,
     selectedModelName,
+    selectedPromptName,
     setCount,
   } = useGenerationActions({
     clearSpecTree,
@@ -59,6 +67,7 @@ export function GenerationPanel({
     loadSpecTree,
     modelId,
     onSuccessfulGeneration,
+    promptId: promptVariants.promptId,
     routerEnabled,
     selectedLayerId,
     setCeilingBanner,
@@ -91,10 +100,14 @@ export function GenerationPanel({
         onGenerate={handleGenerate}
         onLayerChange={setSelectedLayerId}
         onModelIdChange={setModelId}
+        onPromptIdChange={promptVariants.setPromptId}
+        promptId={promptVariants.promptId}
+        promptVariants={promptVariants.variants}
         routerEnabled={routerEnabled}
         selectedLayerId={selectedLayerId}
       />
       {selectedModelName && <p className="mt-2 text-sm text-neutral-600">Generated with: {selectedModelName}</p>}
+      {selectedPromptName && <p className="mt-1 text-sm text-neutral-600">Prompt: {selectedPromptName}</p>}
 
       <GenerationCandidates candidates={candidates} onAccept={handleAccept} onReject={handleReject} />
       {allCandidatesBlocked && (
