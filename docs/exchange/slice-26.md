@@ -9,7 +9,6 @@
 > to the User, who commits it.
 
 ## Codex — handoff & notes
-- [Codex — YYYY-MM-DD] <what was built, tests run + results, deviations>
 <!-- Include an acceptance-to-test mapping in your handoff:
 | Acceptance criterion | Test | Covered? |
 | --- | --- | --- |
@@ -30,6 +29,7 @@ Tests run:
 - Frontend: `PATH="$HOME/.nvm/versions/node/v24.16.0/bin:$PATH" pnpm test` -> 22 files / 53 tests passed.
 - Frontend typecheck: `PATH="$HOME/.nvm/versions/node/v24.16.0/bin:$PATH" pnpm typecheck` -> passed.
 - Frontend build: `PATH="$HOME/.nvm/versions/node/v24.16.0/bin:$PATH" pnpm build` -> passed.
+- [Codex — 2026-06-06] QA fix: made `0004_add_spec_revisions` a clean create-only upgrade and drop-only downgrade, removed the unfilled handoff placeholder line, and added a static migration test that fails if upgrade gains DROP statements or downgrade gains CREATE TABLE.
 
 ## ChatGPT — QA review
 - [ChatGPT — YYYY-MM-DD] ...

@@ -6,6 +6,22 @@ from alembic.config import Config
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import IntegrityError
 
+MIGRATION_PATH = Path("alembic/versions/0004_add_spec_revisions.py")
+
+
+def test_migration_0004_is_clean_create_only() -> None:
+    """Migration 0004 upgrade only creates and downgrade only drops."""
+    source = MIGRATION_PATH.read_text()
+    upgrade_body = source.split("def upgrade() -> None:", maxsplit=1)[1].split(
+        "def downgrade() -> None:",
+        maxsplit=1,
+    )[0]
+    downgrade_body = source.split("def downgrade() -> None:", maxsplit=1)[1]
+
+    assert "DROP TABLE" not in upgrade_body
+    assert "DROP INDEX" not in upgrade_body
+    assert "CREATE TABLE" not in downgrade_body
+
 
 def test_migration_0004_creates_spec_revisions_table_and_unique_constraint(tmp_path: Path) -> None:
     """Migration 0004 creates the audit table with per-spec revision uniqueness."""
