@@ -39,3 +39,6 @@ Tests run:
 ## Open questions
 
 ## User — decisions
+
+## Claude — final conformance
+- [Claude — 2026-06-06] APPROVE — closes V1's last feature: an immutable, in-transaction revision trail (created/text_edited/status_changed) snapshotting text/status/source, with a read-only history view. The migration ended up correctly as a forward-only replacement of the dead 0001 placeholder spec_revisions (0001 left immutable), which is the right call for existing DBs and is now documented in the spec + DECISIONS.md. The recording is hooked at all three mutation points and commits in the same transaction, so revisions can't be orphaned. Deferred + noted: max+1 numbering is fine single-user (a unique-constraint retry belongs in any future multi-user hardening); snapshot omits model/prompt/actor metadata (revisit if exports become formal audit deliverables). The three-round churn here traced largely to my incorrect first BLOCK; end state is correct. Clear to merge."

@@ -50,7 +50,7 @@ Frontend: `SpecHistoryPanel.tsx` + a History trigger on the spec node, `api`/typ
 - Existing specs are backfilled with a baseline `created` revision (idempotently) via the seed.
 - The history is viewable per spec (API + read-only UI), in chronological order.
 - A manual spec's history is distinguishable from an AI-then-accepted spec's history with no new fields.
-- The migration is a clean single-table create; the backfill is idempotent and runs via the seed.
+- The migration is the approved forward-only placeholder replacement plus audit-table creation; the backfill is idempotent and runs via the seed.
 - Every touched frontend file strictly under 200 lines.
 - `pnpm test` + `pnpm typecheck` + `pnpm build` + backend `pytest` all green and reported. Handoff in `docs/exchange/slice-26.md` with acceptance-to-test mapping.
 
