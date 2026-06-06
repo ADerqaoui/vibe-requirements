@@ -48,6 +48,15 @@ describe('SpecNode', () => {
     expect(screen.getByText('AI')).toBeInTheDocument()
   })
 
+  it('renders the statement and actions in separate rows', () => {
+    renderNode()
+
+    const statementButton = screen.getByRole('button', { name: /REQ-SYS-0001 The system shall brake\./ })
+    const acceptButton = screen.getByRole('button', { name: 'Accept' })
+
+    expect(statementButton.parentElement).not.toBe(acceptButton.parentElement)
+  })
+
   it('edits a spec inline and refreshes the tree', async () => {
     const onSpecChanged = vi.fn()
     vi.stubGlobal(
