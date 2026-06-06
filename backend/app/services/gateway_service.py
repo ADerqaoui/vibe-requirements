@@ -45,6 +45,7 @@ async def complete_model(
     prompt: str,
     system: str | None,
     runtime: GatewayRuntime,
+    task: str = MANUAL_TASK,
     prompt_id: int | None = None,
     prompt_version: int | None = None,
 ) -> CompletionResult:
@@ -72,6 +73,7 @@ async def complete_model(
             in_tokens=0,
             out_tokens=0,
             cost_sek=0.0,
+            task=task,
             prompt_id=prompt_id,
             prompt_version=prompt_version,
         )
@@ -96,6 +98,7 @@ async def complete_model(
         in_tokens=gateway_result.in_tokens,
         out_tokens=gateway_result.out_tokens,
         cost_sek=cost_sek,
+        task=task,
         prompt_id=prompt_id,
         prompt_version=prompt_version,
     )
@@ -141,6 +144,7 @@ def _write_call_log(
     in_tokens: int,
     out_tokens: int,
     cost_sek: float,
+    task: str,
     prompt_id: int | None,
     prompt_version: int | None,
 ) -> None:
@@ -148,7 +152,7 @@ def _write_call_log(
     register_call_log_reference_tables()
     db.add(
         CallLog(
-            task=MANUAL_TASK,
+            task=task,
             provider=model.provider,
             model_id=model.id,
             prompt_id=prompt_id,

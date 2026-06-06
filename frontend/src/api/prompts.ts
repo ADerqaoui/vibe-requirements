@@ -1,4 +1,14 @@
-import type { Prompt, PromptDefaultSet, PromptVariant, PromptVersion, PromptVersionCreate } from '../types/prompt'
+import { parseApiError } from './errors'
+import type {
+  Prompt,
+  PromptContracts,
+  PromptDefaultSet,
+  PromptPreviewRequest,
+  PromptPreviewResponse,
+  PromptVariant,
+  PromptVersion,
+  PromptVersionCreate,
+} from '../types/prompt'
 
 const PROMPTS_PATH = '/api/prompts'
 
@@ -35,6 +45,30 @@ export async function fetchPromptVariants(task: string, layerId?: number | null)
     throw new Error(`Prompt variants request failed: HTTP ${response.status}`)
   }
   return (await response.json()) as PromptVariant[]
+}
+
+export async function fetchPromptContracts(): Promise<PromptContracts> {
+  const response = await fetch(`${PROMPTS_PATH}/contracts`)
+  if (!response.ok) {
+    throw new Error(`Prompt contracts request failed: HTTP ${response.status}`)
+  }
+  return (await response.json()) as PromptContracts
+}
+
+export async function previewPrompt(payload: PromptPreviewRequest): Promise<PromptPreviewResponse> {
+  const response = await fetch(`${PROMPTS_PATH}/preview`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  if (response.status === 422) {
+    const body = (await response.json()) as { reason?: string }
+    throw new PromptTemplateInvalidApiError(body.reason ?? 'Invalid prompt template')
+  }
+  if (!response.ok) {
+    throw await parseApiError(response, `Prompt preview failed: HTTP ${response.status}`)
+  }
+  return (await response.json()) as PromptPreviewResponse
 }
 
 export async function createPromptVersion(

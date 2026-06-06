@@ -54,3 +54,22 @@ class PromptDefaultSet(BaseModel):
     task: str
     layer_id: int | None = None
     name: str
+
+
+class PromptPreviewRequest(BaseModel):
+    """Run a draft prompt template through a model."""
+
+    task: str
+    template: str
+    variables: dict[str, object]
+    model_id: int | None = None
+
+
+class PromptPreviewResponse(BaseModel):
+    """Prompt preview response."""
+
+    rendered_prompt: str
+    output: str
+    model_id: int
+    model_name: str
+    cost_sek: float

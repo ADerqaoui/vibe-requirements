@@ -39,3 +39,20 @@ export type PromptDefaultSet = {
   layer_id?: number | null
   name: string
 }
+
+export type PromptContracts = Record<string, string[]>
+
+export type PromptPreviewRequest = {
+  task: string
+  template: string
+  variables: Record<string, string>
+  model_id?: number
+}
+
+export type PromptPreviewResponse = {
+  rendered_prompt: string
+  output: string
+  model_id: number
+  model_name: string
+  cost_sek: number
+}

@@ -104,6 +104,7 @@ async def _classify_with_model(
             retry_count=runtime.retry_count,
             timeout_seconds=runtime.timeout_seconds,
         ),
+        task="classify_spec",
         prompt_id=prompt.prompt_id,
         prompt_version=prompt.prompt_version,
     )
