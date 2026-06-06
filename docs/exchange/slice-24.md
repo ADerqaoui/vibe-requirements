@@ -30,3 +30,6 @@
 
 ## User — decisions
 - [User — YYYY-MM-DD] decision — rationale
+
+## Claude — final conformance
+- [Claude — 2026-06-05] APPROVE — the export is finally a complete deliverable: the inspector's findings have existed since slice 10 but never reached the one artifact a stakeholder actually reads. Reading via latest_inspection_id (rather than re-querying or re-running) is the right, cheap approach, and the latest-only rule matches the established ordering. The defensiveness is the part that matters most here and it's thorough — local models won't always emit parseable findings, so the export skipping malformed/empty/non-dict findings without crashing is exactly the robustness real-world stored data needs. The include_inspections=false byte-for-byte regression-lock protects existing consumers. Two concerns logged + deferred: clearer UI naming for review-vs-requirements export (DC1), and a findings schema compatibility layer if the inspection JSON shape ever evolves (DC2 — pairs with the long-deferred findings schema versioning). Clear to merge.
