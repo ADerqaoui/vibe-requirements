@@ -70,11 +70,11 @@ def seed_basic_export(db_session: Session) -> int:
 
 
 def test_render_project_markdown_matches_golden(db_session: Session) -> None:
-    """Rendered export matches the golden file exactly after whitespace normalization."""
+    """Requirements-only export matches the previous golden exactly."""
     project_id = seed_basic_export(db_session)
     expected = (GOLDEN_DIR / "export_basic.md").read_text()
 
-    rendered = render_project_markdown(db_session, project_id)
+    rendered = render_project_markdown(db_session, project_id, include_inspections=False)
 
     assert normalize_trailing_whitespace(rendered) == normalize_trailing_whitespace(expected)
 
