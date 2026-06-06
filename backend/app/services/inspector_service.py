@@ -73,6 +73,7 @@ async def inspect_spec(
             prompt=prompt.text,
             system=None,
             runtime=runtime,
+            task="inspect_spec",
             prompt_id=prompt.prompt_id,
             prompt_version=prompt.prompt_version,
         )

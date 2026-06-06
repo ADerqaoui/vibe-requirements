@@ -1,12 +1,17 @@
 """Prompt registry API routes."""
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import JSONResponse
-from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.api.prompt_api_helpers import (
+    default_layer_id,
+    invalid_layer_response,
+    layer_names,
+    read_prompt,
+    read_version,
+)
+from app.api.prompt_preview import router as prompt_preview_router
 from app.db import get_db
-from app.models.layer import Layer
-from app.models.prompt import Prompt
 from app.schemas.prompt import (
     PromptDefaultSet,
     PromptRead,
@@ -15,7 +20,6 @@ from app.schemas.prompt import (
     PromptVersionRead,
 )
 from app.services.prompt_errors import PromptNotFoundError, PromptTemplateInvalidError
-from app.services.layer_service import NEED_LAYER_NAME
 from app.services.prompt_service import (
     create_version,
     get_default_variant_name,
@@ -27,14 +31,15 @@ from app.services.prompt_service import (
 )
 
 router = APIRouter(prefix="/prompts", tags=["prompts"])
+router.include_router(prompt_preview_router)
 
 
 @router.get("", response_model=list[PromptRead])
 async def list_prompts_route(db: Session = Depends(get_db)) -> list[PromptRead]:
     """Return currently active prompts."""
     prompts = list_active(db)
-    layer_names = _layer_names(db, prompts)
-    return [_read_prompt(prompt, layer_names) for prompt in prompts]
+    names = layer_names(db, prompts)
+    return [read_prompt(prompt, names) for prompt in prompts]
 
 
 @router.get("/{task}/versions", response_model=list[PromptVersionRead])
@@ -47,8 +52,8 @@ async def list_prompt_versions_route(
         prompts = list_versions(db, task)
     except PromptNotFoundError as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Prompt task not found") from error
-    layer_names = _layer_names(db, prompts)
-    return [_read_version(prompt, layer_names) for prompt in prompts]
+    names = layer_names(db, prompts)
+    return [read_version(prompt, names) for prompt in prompts]
 
 
 @router.get("/{task}/variants", response_model=list[PromptVariantRead])
@@ -59,19 +64,19 @@ async def list_prompt_variants_route(
 ) -> list[PromptVariantRead]:
     """Return enabled variants accepted for one requested prompt group."""
     variants = list_variants(db, task, layer_id)
-    layer_names = _layer_names(db, variants)
-    default_layer_id = _default_layer_id(variants, layer_id)
-    default_name = get_default_variant_name(db, task, default_layer_id)
+    names = layer_names(db, variants)
+    selected_layer_id = default_layer_id(variants, layer_id)
+    default_name = get_default_variant_name(db, task, selected_layer_id)
     return [
         PromptVariantRead(
             name=variant.name,
             version=variant.version,
             template=variant.template,
-            is_default=variant.layer_id == default_layer_id and variant.name == default_name,
+            is_default=variant.layer_id == selected_layer_id and variant.name == default_name,
             prompt_id=variant.id,
             layer_id=variant.layer_id,
-            layer_name=layer_names.get(variant.layer_id) if variant.layer_id is not None else None,
-            scope_label=layer_names.get(variant.layer_id) if variant.layer_id is not None else "Global",
+            layer_name=names.get(variant.layer_id) if variant.layer_id is not None else None,
+            scope_label=names.get(variant.layer_id) if variant.layer_id is not None else "Global",
         )
         for variant in variants
     ]
@@ -85,7 +90,7 @@ async def create_prompt_version_route(
 ) -> PromptVersionRead | JSONResponse:
     """Create a new active immutable prompt version."""
     if payload.layer_id is not None:
-        invalid_response = _invalid_layer_response(db, payload.layer_id)
+        invalid_response = invalid_layer_response(db, payload.layer_id)
         if invalid_response is not None:
             return invalid_response
     try:
@@ -104,7 +109,7 @@ async def create_prompt_version_route(
         )
     except PromptNotFoundError as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Prompt task not found") from error
-    return _read_version(prompt, _layer_names(db, [prompt]))
+    return read_version(prompt, layer_names(db, [prompt]))
 
 
 @router.post("/{prompt_id}/promote", response_model=PromptVersionRead)
@@ -117,7 +122,7 @@ async def promote_prompt_route(
         prompt = promote(db, prompt_id)
     except PromptNotFoundError as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Prompt not found") from error
-    return _read_version(prompt, _layer_names(db, [prompt]))
+    return read_version(prompt, layer_names(db, [prompt]))
 
 
 @router.post("/set-default", response_model=PromptDefaultSet)
@@ -131,47 +136,3 @@ async def set_default_prompt_route(
     except PromptNotFoundError as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Prompt variant not found") from error
     return payload
-
-
-def _layer_names(db: Session, prompts: list[Prompt]) -> dict[int, str]:
-    """Return layer display names for prompt rows."""
-    layer_ids = sorted({prompt.layer_id for prompt in prompts if prompt.layer_id is not None})
-    if not layer_ids:
-        return {}
-    layers = db.scalars(select(Layer).where(Layer.id.in_(layer_ids))).all()
-    return {layer.id: layer.name for layer in layers}
-
-
-def _read_prompt(prompt: Prompt, layer_names: dict[int, str]) -> PromptRead:
-    """Build an active prompt response with layer name."""
-    layer_name = layer_names.get(prompt.layer_id) if prompt.layer_id is not None else None
-    return PromptRead.model_validate(prompt).model_copy(update={"layer_name": layer_name})
-
-
-def _read_version(prompt: Prompt, layer_names: dict[int, str]) -> PromptVersionRead:
-    """Build a prompt version response with layer name."""
-    layer_name = layer_names.get(prompt.layer_id) if prompt.layer_id is not None else None
-    return PromptVersionRead.model_validate(prompt).model_copy(update={"layer_name": layer_name})
-
-
-def _default_layer_id(variants: list[Prompt], layer_id: int | None) -> int | None:
-    """Return the group whose default should be preselected."""
-    if layer_id is not None and any(variant.layer_id == layer_id for variant in variants):
-        return layer_id
-    return None
-
-
-def _invalid_layer_response(db: Session, layer_id: int) -> JSONResponse | None:
-    """Return a validation response when a layer id is not authorable."""
-    layer = db.get(Layer, layer_id)
-    if layer is None:
-        return JSONResponse(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            content={"error": "prompt_layer_invalid", "reason": "Layer does not exist"},
-        )
-    if layer.name == NEED_LAYER_NAME:
-        return JSONResponse(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            content={"error": "prompt_layer_invalid", "reason": "Need layer cannot have prompt variants"},
-        )
-    return None

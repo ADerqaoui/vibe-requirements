@@ -100,6 +100,7 @@ async def generate_for_parent(
                 retry_count=runtime.retry_count,
                 timeout_seconds=runtime.timeout_seconds,
             ),
+            task=task,
             prompt_id=prompt.prompt_id,
             prompt_version=prompt.prompt_version,
         )

@@ -3,6 +3,7 @@ import { createPromptVersion, PromptTemplateInvalidApiError } from '../api/promp
 import type { Layer } from '../types/layer'
 import type { Prompt } from '../types/prompt'
 import { LayerVariantPicker } from './LayerVariantPicker'
+import { PromptPreviewPanel } from './PromptPreviewPanel'
 
 type PromptEditorProps = {
   prompt: Prompt
@@ -105,6 +106,7 @@ export function PromptEditor({
           onChange={(event) => setTemplate(event.target.value)}
         />
       </label>
+      <PromptPreviewPanel task={prompt.task} template={template} />
       {error && <p className="text-sm text-red-600">{error}</p>}
       <div className="flex gap-2">
         <button className="rounded bg-neutral-900 px-3 py-1 text-sm text-white" disabled={isSaving} type="submit">

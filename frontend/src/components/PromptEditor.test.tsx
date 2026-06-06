@@ -19,6 +19,26 @@ function jsonResponse(status: number, body: unknown): Response {
   return { ok: status < 400, status, json: async () => body } as Response
 }
 
+function stubPromptEditorFetch(saveResponse: Response) {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+      const path = input.toString()
+      const method = init?.method ?? 'GET'
+      if (path === '/api/prompts/contracts') {
+        return jsonResponse(200, { classify_spec: ['spec_statement'] })
+      }
+      if (path === '/api/models') {
+        return jsonResponse(200, [])
+      }
+      if (path === '/api/prompts/classify_spec/versions' && method === 'POST') {
+        return saveResponse
+      }
+      return jsonResponse(404, {})
+    }),
+  )
+}
+
 describe('PromptEditor', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
@@ -26,7 +46,7 @@ describe('PromptEditor', () => {
 
   it('prefills template and saves a new version', async () => {
     const onSaved = vi.fn()
-    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(200, { id: 2, ...prompt, version: 2 })))
+    stubPromptEditorFetch(jsonResponse(200, { id: 2, ...prompt, version: 2 }))
 
     render(<PromptEditor prompt={prompt} onCancel={vi.fn()} onSaved={onSaved} />)
 
@@ -44,10 +64,7 @@ describe('PromptEditor', () => {
   })
 
   it('shows inline validation reason for 422 responses', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async () => jsonResponse(422, { error: 'prompt_template_invalid', reason: 'missing variables' })),
-    )
+    stubPromptEditorFetch(jsonResponse(422, { error: 'prompt_template_invalid', reason: 'missing variables' }))
 
     render(<PromptEditor prompt={prompt} onCancel={vi.fn()} onSaved={vi.fn()} />)
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
@@ -57,7 +74,7 @@ describe('PromptEditor', () => {
 
   it('shows a layer picker for new variants and posts the selected layer', async () => {
     const onSaved = vi.fn()
-    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(200, { id: 3, ...prompt, version: 1 })))
+    stubPromptEditorFetch(jsonResponse(200, { id: 3, ...prompt, version: 1 }))
 
     render(
       <PromptEditor
@@ -78,9 +95,11 @@ describe('PromptEditor', () => {
     }))
   })
 
-  it('shows existing scope as read-only while editing', () => {
+  it('shows existing scope as read-only while editing', async () => {
+    stubPromptEditorFetch(jsonResponse(200, { id: 2, ...prompt, version: 2 }))
     render(<PromptEditor prompt={{ ...prompt, layer_id: 2, layer_name: 'System Requirement' }} onCancel={vi.fn()} onSaved={vi.fn()} />)
 
+    await screen.findByLabelText('spec_statement')
     expect(screen.getByText('Scope: System Requirement')).toBeInTheDocument()
     expect(screen.queryByLabelText('Layer')).not.toBeInTheDocument()
   })
