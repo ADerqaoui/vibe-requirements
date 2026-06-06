@@ -1,9 +1,12 @@
 """FastAPI application entry point."""
 import logging
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.errors import unhandled_exception_response
 from app.api.blacklist import router as blacklist_router
 from app.api.classification import router as classification_router
 from app.api.cost import router as cost_router
@@ -20,6 +23,7 @@ from app.api.projects import router as projects_router
 from app.api.prompts import router as prompts_router
 from app.api.settings import router as settings_router
 from app.api.specs import router as specs_router
+from app.bootstrap import run_startup_db_setup
 from app.config import get_settings
 
 
@@ -28,7 +32,13 @@ def create_app() -> FastAPI:
     settings = get_settings()
     logging.basicConfig(level=settings.log_level)
 
-    app = FastAPI(title="Requirement Review Dashboard", version="0.1.0")
+    @asynccontextmanager
+    async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+        run_startup_db_setup(settings)
+        yield
+
+    app = FastAPI(title="Requirement Review Dashboard", version="0.1.0", lifespan=lifespan)
+    app.add_exception_handler(Exception, unhandled_exception_response)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,

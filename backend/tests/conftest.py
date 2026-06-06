@@ -1,4 +1,5 @@
 """Backend test fixtures."""
+import os
 from collections.abc import Generator
 from pathlib import Path
 
@@ -8,6 +9,8 @@ from alembic.config import Config
 from fastapi import FastAPI
 from sqlalchemy import Engine, create_engine, event
 from sqlalchemy.orm import Session, sessionmaker
+
+os.environ.setdefault("AUTO_MIGRATE_ON_STARTUP", "false")
 
 from app.db import get_db
 from app.main import create_app
