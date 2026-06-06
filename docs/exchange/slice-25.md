@@ -1,7 +1,6 @@
 # Slice 25 — Exchange
 
 > Shared channel for **Claude, Codex, ChatGPT, User**.
-> **Every entry begins with `[Author — YYYY-MM-DD]`** so it's always clear who is speaking.
 > Append-only. Communication, NOT commands: a finding becomes Codex work only via a
 > User-approved task spec. Each author writes under their own heading; "Open questions"
 > and "User — decisions" are shared.
@@ -9,7 +8,6 @@
 > to the User, who commits it.
 
 ## Codex — handoff & notes
-- [Codex — YYYY-MM-DD] <what was built, tests run + results, deviations>
 <!-- Include an acceptance-to-test mapping in your handoff:
 | Acceptance criterion | Test | Covered? |
 | --- | --- | --- |
@@ -34,13 +32,12 @@ Tests run:
 - Frontend build: `PATH="$HOME/.nvm/versions/node/v24.16.0/bin:$PATH" pnpm build` -> passed.
 
 ## ChatGPT — QA review
-- [ChatGPT — YYYY-MM-DD] ...
 
 ## Claude — conformance review & design notes
-- [Claude — YYYY-MM-DD] ...
 
 ## Open questions
-- [Author — YYYY-MM-DD] Q ...   →   [Author — YYYY-MM-DD] A ...
 
 ## User — decisions
-- [User — YYYY-MM-DD] decision — rationale
+
+## Claude — final conformance
+- [Claude — 2026-06-06] APPROVE — this closes the prompt-editing safety gap: you can now run an unsaved draft against a real model and see actual output before promoting it, which is the difference between editing prompts blind and editing them with feedback. The load-bearing decision is routing the run through complete_model with task="preview" — it means preview inherits cost-ceiling enforcement and call-logging for free and can never drift from the real generation path, while persisting no spec/inspection. Working on draft (unsaved) template text is the whole point and it's honored. Driving the variable fields from a contracts endpoint (rather than hard-coding per-task vars in the UI) keeps the frontend honest against the backend's REQUIRED_VARIABLES_BY_TASK. The 502 gateway-failure mapping was a sound un-specified addition. The one nit (placeholder exchange line) is fixed in the merge commit. Two concerns logged + deferred: preview call_logs don't record the original prompt task (preview-for-generation vs -inspection) for future cost/audit breakdown; and "use a real Need/Spec as sample input" is a later UX nicety (samples are local examples now). Clear to merge.
