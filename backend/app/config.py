@@ -11,6 +11,7 @@ class Settings(BaseSettings):
 
     # Database
     database_url: str = "sqlite:///./reqdash.db"
+    auto_migrate_on_startup: bool = True
 
     # Ollama (local LLM host)
     ollama_host: str = "http://localhost:11434"
