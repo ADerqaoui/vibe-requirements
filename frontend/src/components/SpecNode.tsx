@@ -80,72 +80,76 @@ export function SpecNode({
         isSelected ? 'border-blue-500 border-l-4 bg-blue-50 font-medium' : 'border-neutral-200'
       }`}
     >
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        {isEditing ? (
-          <SpecEditor initialText={spec.statement} onCancel={() => setIsEditing(false)} onSave={handleSave} />
-        ) : (
+      <div className="space-y-3">
+        <div className="w-full text-left">
+          {isEditing ? (
+            <SpecEditor initialText={spec.statement} onCancel={() => setIsEditing(false)} onSave={handleSave} />
+          ) : (
+            <button
+              className="w-full min-w-0 text-left text-neutral-950"
+              onClick={() => onSelectSpec?.(spec)}
+              type="button"
+            >
+              <span className="mr-2 font-semibold text-neutral-700">{spec.req_id ?? 'REQ-UNASSIGNED'}</span>
+              {spec.statement}
+            </button>
+          )}
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="rounded bg-neutral-100 px-2 py-1 text-xs text-neutral-700">
+            {spec.source === 'manual' ? 'Manual' : 'AI'}
+          </span>
+          <span className="rounded bg-blue-50 px-2 py-1 text-xs text-blue-700">
+            {spec.layer_name}
+          </span>
+          <span className={`rounded px-2 py-1 text-xs ${statusClasses(status)}`}>{status}</span>
+          <span
+            className="rounded bg-neutral-100 px-2 py-1 text-xs text-neutral-700"
+            title={voteTooltip(votesBySpec[spec.id])}
+          >
+            {complexity ?? '—'}
+          </span>
+          {isAutoClassifying && (
+            <span className="inline-flex items-center gap-1 text-xs font-medium text-blue-700">
+              <span
+                aria-hidden="true"
+                className="inline-block h-3 w-3 animate-spin rounded-full border border-blue-200 border-t-blue-600"
+              />
+              Classifying...
+            </span>
+          )}
           <button
-            className="min-w-0 flex-1 text-left text-neutral-950"
-            onClick={() => onSelectSpec?.(spec)}
+            className="text-xs font-medium text-neutral-900"
+            disabled={loadingSpecId === spec.id}
+            onClick={() => onClassify(spec)}
             type="button"
           >
-            <span className="mr-2 font-semibold text-neutral-700">{spec.req_id ?? 'REQ-UNASSIGNED'}</span>
-            {spec.statement}
+            {loadingSpecId === spec.id ? 'Classifying...' : 'Classify'}
           </button>
-        )}
-        <span className="rounded bg-neutral-100 px-2 py-1 text-xs text-neutral-700">
-          {spec.source === 'manual' ? 'Manual' : 'AI'}
-        </span>
-        <span className="rounded bg-blue-50 px-2 py-1 text-xs text-blue-700">
-          {spec.layer_name}
-        </span>
-        <span className={`rounded px-2 py-1 text-xs ${statusClasses(status)}`}>{status}</span>
-        <span
-          className="rounded bg-neutral-100 px-2 py-1 text-xs text-neutral-700"
-          title={voteTooltip(votesBySpec[spec.id])}
-        >
-          {complexity ?? '—'}
-        </span>
-        {isAutoClassifying && (
-          <span className="inline-flex items-center gap-1 text-xs font-medium text-blue-700">
-            <span
-              aria-hidden="true"
-              className="inline-block h-3 w-3 animate-spin rounded-full border border-blue-200 border-t-blue-600"
-            />
-            Classifying...
-          </span>
-        )}
-        <button
-          className="text-xs font-medium text-neutral-900"
-          disabled={loadingSpecId === spec.id}
-          onClick={() => onClassify(spec)}
-          type="button"
-        >
-          {loadingSpecId === spec.id ? 'Classifying...' : 'Classify'}
-        </button>
-        <button
-          className="text-xs font-medium text-neutral-900 disabled:text-neutral-400"
-          disabled={loadingInspectionId === spec.id}
-          onClick={() => onInspect(spec)}
-          type="button"
-        >
-          {loadingInspectionId === spec.id ? 'Inspecting...' : 'Inspect'}
-        </button>
-        <button className="text-xs font-medium text-neutral-900" onClick={() => setIsEditing(true)} type="button">
-          Edit
-        </button>
-        <button className="text-xs font-medium text-neutral-900" onClick={() => setIsHistoryOpen(true)} type="button">
-          History
-        </button>
-        <button className="text-xs font-medium text-neutral-900" onClick={() => setIsAdding(true)} type="button">
-          Add requirement
-        </button>
-        <button className="text-xs text-green-700" onClick={() => onDecide(spec, 'accepted')} type="button">
-          Accept
-        </button>
-        <button className="text-xs text-red-600" onClick={() => onDecide(spec, 'rejected')} type="button">
-          Reject
-        </button>
+          <button
+            className="text-xs font-medium text-neutral-900 disabled:text-neutral-400"
+            disabled={loadingInspectionId === spec.id}
+            onClick={() => onInspect(spec)}
+            type="button"
+          >
+            {loadingInspectionId === spec.id ? 'Inspecting...' : 'Inspect'}
+          </button>
+          <button className="text-xs font-medium text-neutral-900" onClick={() => setIsEditing(true)} type="button">
+            Edit
+          </button>
+          <button className="text-xs font-medium text-neutral-900" onClick={() => setIsHistoryOpen(true)} type="button">
+            History
+          </button>
+          <button className="text-xs font-medium text-neutral-900" onClick={() => setIsAdding(true)} type="button">
+            Add requirement
+          </button>
+          <button className="text-xs text-green-700" onClick={() => onDecide(spec, 'accepted')} type="button">
+            Accept
+          </button>
+          <button className="text-xs text-red-600" onClick={() => onDecide(spec, 'rejected')} type="button">
+            Reject
+          </button>
+        </div>
       </div>
       {isAdding && (
         <ManualSpecForm
