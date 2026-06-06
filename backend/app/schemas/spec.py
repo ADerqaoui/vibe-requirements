@@ -83,3 +83,16 @@ class SpecUpdate(BaseModel):
         if normalized_value == "":
             raise ValueError("Spec text must not be blank")
         return normalized_value
+
+
+class SpecRevisionOut(BaseModel):
+    """Spec revision history response body."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    revision_number: int
+    text: str
+    status: str
+    source: str
+    change_type: str
+    created_at: str

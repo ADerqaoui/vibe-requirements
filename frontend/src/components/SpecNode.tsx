@@ -6,6 +6,7 @@ import type { SpecInspection } from '../types/inspection'
 import type { SpecTreeNode } from '../types/spec'
 import { ManualSpecForm } from './ManualSpecForm'
 import { SpecEditor } from './SpecEditor'
+import { SpecHistoryPanel } from './SpecHistoryPanel'
 import { SpecInspectionDetails } from './SpecInspectionDetails'
 
 type SpecNodeProps = {
@@ -65,6 +66,7 @@ export function SpecNode({
   const isAutoClassifying = classifyingSpecIds.has(spec.id)
   const [isAdding, setIsAdding] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false)
 
   async function handleSave(text: string) {
     await updateSpecText(spec.id, text)
@@ -132,6 +134,9 @@ export function SpecNode({
         <button className="text-xs font-medium text-neutral-900" onClick={() => setIsEditing(true)} type="button">
           Edit
         </button>
+        <button className="text-xs font-medium text-neutral-900" onClick={() => setIsHistoryOpen(true)} type="button">
+          History
+        </button>
         <button className="text-xs font-medium text-neutral-900" onClick={() => setIsAdding(true)} type="button">
           Add requirement
         </button>
@@ -152,6 +157,7 @@ export function SpecNode({
           parent={{ kind: 'spec', id: spec.id, layer_id: spec.layer_id }}
         />
       )}
+      {isHistoryOpen && <SpecHistoryPanel specId={spec.id} onClose={() => setIsHistoryOpen(false)} />}
       {inspection && <SpecInspectionDetails inspection={inspection} />}
       {spec.children.length > 0 && (
         <ul className="mt-2 space-y-2 border-l border-neutral-200 pl-4">

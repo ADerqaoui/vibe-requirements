@@ -37,3 +37,12 @@ export type SpecTreeNode = {
   latest_inspection_id: number | null
   children: SpecTreeNode[]
 }
+
+export type SpecRevision = {
+  revision_number: number
+  text: string
+  status: string
+  source: string
+  change_type: string
+  created_at: string
+}
