@@ -4,20 +4,7 @@ Branch: `slice-26` (from `main`). Scope: record an immutable, per-spec history o
 
 ## In scope
 
-1. **Migration `0004_add_spec_revisions`** — create one table, nothing else:
-   ```
-   CREATE TABLE spec_revisions (
-       id              INTEGER PRIMARY KEY,
-       spec_id         INTEGER NOT NULL REFERENCES specs(id) ON DELETE CASCADE,
-       revision_number INTEGER NOT NULL,
-       text            TEXT NOT NULL,
-       status          TEXT NOT NULL,
-       source          TEXT NOT NULL,
-       change_type     TEXT NOT NULL,          -- created | text_edited | status_changed
-       created_at      TEXT NOT NULL DEFAULT (datetime('now'))
-   ) STRICT
-   ```
-   Index on `spec_id`; `UNIQUE(spec_id, revision_number)`. `created_at` uses the table default `datetime('now')` (consistent with `spec_inspections`) — do not set it from Python.
+1. **Migration `0004_add_spec_revisions`** — **REPLACE** the unused pre-V1 placeholder `spec_revisions` table that `0001_initial_schema.py` creates (an abandoned-scaffold shape: `revision_no`/`layer_id`/`disciplines`/`diagram_src`/`reason`/`archived_at`, referenced by no app code and holding no data) with the real audit table. `0001` stays immutable; the replacement is forward-only in `0004` so it works on databases that already applied `0001`. `upgrade()`: `DROP INDEX IF EXISTS idx_revisions_spec`; `DROP TABLE IF EXISTS spec_revisions`; `CREATE` the audit table (`id`, `spec_id` FK ON DELETE CASCADE, `revision_number`, `text`, `status`, `source`, `change_type`, `created_at` default `datetime('now')`, `UNIQUE(spec_id, revision_number)`) STRICT; `CREATE INDEX idx_spec_revisions_spec`. `downgrade()`: drop the audit table+index, then restore the `0001` placeholder table+index for reversibility. No data step in the migration — backfill is in the seed runner. The placeholder DROP is non-destructive because the placeholder is provably unused.
 
 2. **Revision recording** — a single helper `record_spec_revision(db, spec, change_type)` that snapshots the spec's **current** `text`, `status`, `source`, assigns `revision_number = (max for that spec) + 1` (starts at 1), and inserts a row. It is called **within the same transaction as the mutation** (the revision and the change commit together; for `created`, flush so the spec has an id before recording). Hook it into exactly three places:
    - `create_spec_for_need` + `create_spec_for_parent_spec` → `change_type="created"` (this also covers manual creation from slice 23, which routes through these).
@@ -68,4 +55,4 @@ Frontend: `SpecHistoryPanel.tsx` + a History trigger on the spec node, `api`/typ
 - `pnpm test` + `pnpm typecheck` + `pnpm build` + backend `pytest` all green and reported. Handoff in `docs/exchange/slice-26.md` with acceptance-to-test mapping.
 
 ## Constraints
-- Exactly one migration, only the `spec_revisions` table (no data step in the migration — backfill belongs in the seed runner). Revisions are append-only/immutable — never updated or deleted except via the spec's ON DELETE CASCADE. `record_spec_revision` runs in the same transaction as the mutation it records (no orphan/missing revisions). Snapshot = text/status/source only (no complexity this slice). `created_at` via the table default. One branch, one PR, no self-merge. All four checks green per docs/MERGE-CHECKLIST.md.
+- Exactly one migration (`0004`); it **REPLACES** the unused `0001` placeholder `spec_revisions` forward-only (`0001` untouched) — no data step in the migration (backfill in the seed runner). Revisions are append-only/immutable — never updated or deleted except via the spec's ON DELETE CASCADE. `record_spec_revision` runs in the same transaction as the mutation it records (no orphan/missing revisions). Snapshot = text/status/source only (no complexity this slice). `created_at` via the table default. One branch, one PR, no self-merge. All four checks green per docs/MERGE-CHECKLIST.md.

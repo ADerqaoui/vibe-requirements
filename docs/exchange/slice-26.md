@@ -33,13 +33,9 @@ Tests run:
 - [Codex — 2026-06-06] QA correction: restored `0001_initial_schema.py` from `origin/main` and changed `0004_add_spec_revisions` to explicitly replace the unused placeholder `spec_revisions` table on upgrade, then restore that placeholder on downgrade. Updated migration tests to assert the real slice-26 columns replace placeholder columns and that downgrade/upgrade round-trips.
 
 ## ChatGPT — QA review
-- [ChatGPT — YYYY-MM-DD] ...
 
 ## Claude — conformance review & design notes
-- [Claude — YYYY-MM-DD] ...
 
 ## Open questions
-- [Author — YYYY-MM-DD] Q ...   →   [Author — YYYY-MM-DD] A ...
 
 ## User — decisions
-- [User — YYYY-MM-DD] decision — rationale
