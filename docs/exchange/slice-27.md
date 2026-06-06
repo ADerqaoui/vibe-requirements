@@ -29,3 +29,6 @@
 
 ## User — decisions
 - [User — YYYY-MM-DD] decision — rationale
+
+## Claude — final conformance
+- [Claude — 2026-06-06] APPROVE (architect fast-track) — frontend-only, layout-only fix, all four checks green, diff verified: statement/editor on a full-width row, badges + the seven actions on a wrapping second row, every handler/disabled/label preserved, props/types/API unchanged. Candidate list already had the correct structure (no change needed). Low-risk; merged without a separate QA round given the triviality and that it was already blocking use. Clears the cramped-column bug (review bug 3).
