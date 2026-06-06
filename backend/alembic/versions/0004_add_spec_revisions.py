@@ -14,7 +14,9 @@ depends_on = None
 
 
 def upgrade() -> None:
-    """Create the Spec revision audit table."""
+    """Replace the placeholder Spec revision table with the audit table."""
+    op.execute("DROP INDEX IF EXISTS idx_revisions_spec")
+    op.execute("DROP TABLE IF EXISTS spec_revisions")
     op.execute(
         """
         CREATE TABLE spec_revisions (
@@ -34,6 +36,22 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    """Drop the Spec revision audit table."""
+    """Restore the placeholder Spec revision table from the initial schema."""
     op.execute("DROP INDEX IF EXISTS idx_spec_revisions_spec")
     op.execute("DROP TABLE IF EXISTS spec_revisions")
+    op.execute(
+        """
+        CREATE TABLE spec_revisions (
+            id           INTEGER PRIMARY KEY,
+            spec_id      INTEGER NOT NULL REFERENCES specs(id) ON DELETE CASCADE,
+            revision_no  INTEGER NOT NULL,
+            text         TEXT NOT NULL,
+            layer_id     INTEGER NOT NULL,
+            disciplines  TEXT,
+            diagram_src  TEXT,
+            reason       TEXT,
+            archived_at  TEXT NOT NULL DEFAULT (datetime('now'))
+        ) STRICT
+        """
+    )
+    op.execute("CREATE INDEX idx_revisions_spec ON spec_revisions(spec_id)")

@@ -171,10 +171,26 @@ def upgrade() -> None:
     op.execute("CREATE INDEX idx_votes_parent ON classification_votes(parent_type, parent_id)")
     op.execute(
         """
+        CREATE TABLE spec_revisions (
+            id           INTEGER PRIMARY KEY,
+            spec_id      INTEGER NOT NULL REFERENCES specs(id) ON DELETE CASCADE,
+            revision_no  INTEGER NOT NULL,
+            text         TEXT NOT NULL,
+            layer_id     INTEGER NOT NULL,
+            disciplines  TEXT,
+            diagram_src  TEXT,
+            reason       TEXT,
+            archived_at  TEXT NOT NULL DEFAULT (datetime('now'))
+        ) STRICT
+        """
+    )
+    op.execute("CREATE INDEX idx_revisions_spec ON spec_revisions(spec_id)")
+    op.execute(
+        """
         CREATE TABLE inspection_findings (
             id                INTEGER PRIMARY KEY,
             spec_id           INTEGER NOT NULL REFERENCES specs(id) ON DELETE CASCADE,
-            spec_revision_id  INTEGER,
+            spec_revision_id  INTEGER REFERENCES spec_revisions(id),
             category          TEXT NOT NULL,
             severity          TEXT NOT NULL CHECK (severity IN ('critical','major','minor')),
             explanation       TEXT NOT NULL,

@@ -30,6 +30,7 @@ Tests run:
 - Frontend typecheck: `PATH="$HOME/.nvm/versions/node/v24.16.0/bin:$PATH" pnpm typecheck` -> passed.
 - Frontend build: `PATH="$HOME/.nvm/versions/node/v24.16.0/bin:$PATH" pnpm build` -> passed.
 - [Codex — 2026-06-06] QA fix: made `0004_add_spec_revisions` a clean create-only upgrade and drop-only downgrade, removed the unfilled handoff placeholder line, and added a static migration test that fails if upgrade gains DROP statements or downgrade gains CREATE TABLE.
+- [Codex — 2026-06-06] QA correction: restored `0001_initial_schema.py` from `origin/main` and changed `0004_add_spec_revisions` to explicitly replace the unused placeholder `spec_revisions` table on upgrade, then restore that placeholder on downgrade. Updated migration tests to assert the real slice-26 columns replace placeholder columns and that downgrade/upgrade round-trips.
 
 ## ChatGPT — QA review
 - [ChatGPT — YYYY-MM-DD] ...

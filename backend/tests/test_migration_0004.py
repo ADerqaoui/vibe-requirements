@@ -1,26 +1,9 @@
-"""Migration 0004 tests."""
 from pathlib import Path
 
 from alembic import command
 from alembic.config import Config
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import IntegrityError
-
-MIGRATION_PATH = Path("alembic/versions/0004_add_spec_revisions.py")
-
-
-def test_migration_0004_is_clean_create_only() -> None:
-    """Migration 0004 upgrade only creates and downgrade only drops."""
-    source = MIGRATION_PATH.read_text()
-    upgrade_body = source.split("def upgrade() -> None:", maxsplit=1)[1].split(
-        "def downgrade() -> None:",
-        maxsplit=1,
-    )[0]
-    downgrade_body = source.split("def downgrade() -> None:", maxsplit=1)[1]
-
-    assert "DROP TABLE" not in upgrade_body
-    assert "DROP INDEX" not in upgrade_body
-    assert "CREATE TABLE" not in downgrade_body
 
 
 def test_migration_0004_creates_spec_revisions_table_and_unique_constraint(tmp_path: Path) -> None:
@@ -83,3 +66,58 @@ def test_migration_0004_creates_spec_revisions_table_and_unique_constraint(tmp_p
     assert any(row[2] == "specs" and row[3] == "spec_id" and row[6] == "CASCADE" for row in foreign_keys)
     assert strict == 1
     assert duplicate_blocked
+
+
+def test_migration_0004_replaces_placeholder_columns(tmp_path: Path) -> None:
+    """Full upgrade replaces the 0001 placeholder shape with slice-26 columns."""
+    database_url = f"sqlite:///{tmp_path / 'migration-store'}"
+    config = Config("alembic.ini")
+    config.set_main_option("sqlalchemy.url", database_url)
+
+    command.upgrade(config, "head")
+
+    engine = create_engine(database_url)
+    with engine.connect() as connection:
+        column_names = {
+            column[1]
+            for column in connection.execute(text("PRAGMA table_info(spec_revisions)")).all()
+        }
+        unique_indexes = [
+            row
+            for row in connection.execute(text("PRAGMA index_list(spec_revisions)")).all()
+            if row[2] == 1
+        ]
+        unique_index_columns = [
+            [
+                column[2]
+                for column in connection.execute(text(f"PRAGMA index_info({row[1]})")).all()
+            ]
+            for row in unique_indexes
+        ]
+    engine.dispose()
+
+    assert {"revision_number", "status", "source", "change_type"} <= column_names
+    assert {"revision_no", "disciplines", "diagram_src"}.isdisjoint(column_names)
+    assert ["spec_id", "revision_number"] in unique_index_columns
+
+
+def test_migration_0004_downgrade_then_upgrade_round_trips(tmp_path: Path) -> None:
+    """Downgrading 0004 restores the placeholder and upgrading replaces it again."""
+    database_url = f"sqlite:///{tmp_path / 'migration-store'}"
+    config = Config("alembic.ini")
+    config.set_main_option("sqlalchemy.url", database_url)
+
+    command.upgrade(config, "head")
+    command.downgrade(config, "0003_add_spec_req_id")
+    command.upgrade(config, "head")
+
+    engine = create_engine(database_url)
+    with engine.connect() as connection:
+        column_names = [
+            column[1]
+            for column in connection.execute(text("PRAGMA table_info(spec_revisions)")).all()
+        ]
+    engine.dispose()
+
+    assert "revision_number" in column_names
+    assert "revision_no" not in column_names
