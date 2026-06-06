@@ -5,7 +5,14 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.api.spec_serialization import spec_out, spec_tree
-from app.schemas.spec import ManualSpecCreate, SpecCreate, SpecOut, SpecTreeNode, SpecUpdate
+from app.schemas.spec import (
+    ManualSpecCreate,
+    SpecCreate,
+    SpecOut,
+    SpecRevisionOut,
+    SpecTreeNode,
+    SpecUpdate,
+)
 from app.services.need_service import NeedNotFoundError
 from app.services.layer_service import LayerNotAllowedForParentError, TargetLayerRequiredError
 from app.services.spec_service import (
@@ -17,7 +24,9 @@ from app.services.spec_service import (
     list_children_of_spec,
     list_specs_for_need,
     update_spec_text,
+    get_spec,
 )
+from app.services.spec_revision_service import list_spec_revisions
 
 router = APIRouter(tags=["specs"])
 
@@ -95,6 +104,22 @@ async def list_child_specs_route(spec_id: int, db: Session = Depends(get_db)) ->
         return [spec_out(spec, latest_ids.get(spec.id)) for spec in specs]
     except SpecNotFoundError as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Spec not found") from error
+
+
+@router.get("/specs/{spec_id}/revisions", response_model=list[SpecRevisionOut])
+async def list_spec_revisions_route(
+    spec_id: int,
+    db: Session = Depends(get_db),
+) -> list[SpecRevisionOut]:
+    """List immutable history snapshots for one Spec."""
+    try:
+        get_spec(db, spec_id)
+    except SpecNotFoundError as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Spec not found") from error
+    return [
+        SpecRevisionOut.model_validate(revision)
+        for revision in list_spec_revisions(db, spec_id)
+    ]
 
 
 @router.post("/specs/{spec_id}/specs", response_model=SpecOut, status_code=status.HTTP_201_CREATED)

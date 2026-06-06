@@ -1,4 +1,4 @@
-import type { ManualSpecPayload, Spec, SpecPayload, SpecTreeNode } from '../types/spec'
+import type { ManualSpecPayload, Spec, SpecPayload, SpecRevision, SpecTreeNode } from '../types/spec'
 
 export async function fetchNeedSpecs(needId: number): Promise<Spec[]> {
   const response = await fetch(`/api/needs/${needId}/specs`)
@@ -82,4 +82,12 @@ export async function updateSpecText(specId: number, text: string): Promise<Spec
     throw new Error(`Spec edit request failed: HTTP ${response.status}`)
   }
   return (await response.json()) as Spec
+}
+
+export async function fetchSpecRevisions(specId: number): Promise<SpecRevision[]> {
+  const response = await fetch(`/api/specs/${specId}/revisions`)
+  if (!response.ok) {
+    throw new Error(`Spec revisions request failed: HTTP ${response.status}`)
+  }
+  return (await response.json()) as SpecRevision[]
 }

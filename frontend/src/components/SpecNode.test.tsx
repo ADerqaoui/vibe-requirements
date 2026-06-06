@@ -71,4 +71,30 @@ describe('SpecNode', () => {
       }),
     )
   })
+
+  it('opens read-only history for a spec', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (): Promise<Response> => ({
+        ok: true,
+        json: async () => [
+          {
+            revision_number: 1,
+            text: 'The system shall brake.',
+            status: 'pending',
+            source: 'ai',
+            change_type: 'created',
+            created_at: '2026-06-06 10:00:00',
+          },
+        ],
+      }) as Response),
+    )
+    renderNode()
+
+    fireEvent.click(screen.getByRole('button', { name: 'History' }))
+
+    expect(await screen.findByText('1. Created')).toBeInTheDocument()
+    expect(screen.getAllByText('The system shall brake.')).toHaveLength(2)
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
+  })
 })

@@ -5,9 +5,13 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models.prompt import Prompt
+from app.models.project import Project
+from app.models.spec import Spec
+from app.models.spec_revision import SpecRevision
+from app.models.need import Need
 from app.seed.prompts_seed import DEFAULT_PROMPT_ROWS, GENERATE_SPEC_TO_CHILD_V2_TEMPLATE
 from app.seed.reference_data import LAYER_PARENTS
-from app.seed.run import seed_prompts, seed_reference_data
+from app.seed.run import backfill_missing_spec_revisions, seed_prompts, seed_reference_data
 
 BASE_TABLES = {
     "disciplines",
@@ -291,3 +295,35 @@ def test_migration_creates_strict_tables_and_blacklist_vec(db_session: Session) 
 
     foreign_keys_enabled = db_session.scalar(text("PRAGMA foreign_keys"))
     assert foreign_keys_enabled == 1
+
+
+def test_seed_backfills_missing_spec_revisions_idempotently(db_session: Session) -> None:
+    """Seed backfill creates one baseline revision per Spec without duplicates."""
+    seed_reference_data(db_session)
+    layer_id = db_session.scalar(text("SELECT id FROM layers WHERE name = 'System Requirement'"))
+    project = Project(name="Backfill")
+    db_session.add(project)
+    db_session.flush()
+    need = Need(project_id=project.id, statement="Need")
+    db_session.add(need)
+    db_session.flush()
+    spec = Spec(
+        need_id=need.id,
+        layer_id=layer_id,
+        text="Current baseline",
+        status="accepted",
+        source="manual",
+    )
+    db_session.add(spec)
+    db_session.commit()
+
+    backfill_missing_spec_revisions(db_session)
+    backfill_missing_spec_revisions(db_session)
+
+    revisions = db_session.query(SpecRevision).filter_by(spec_id=spec.id).all()
+    assert len(revisions) == 1
+    assert revisions[0].revision_number == 1
+    assert revisions[0].change_type == "created"
+    assert revisions[0].text == "Current baseline"
+    assert revisions[0].status == "accepted"
+    assert revisions[0].source == "manual"

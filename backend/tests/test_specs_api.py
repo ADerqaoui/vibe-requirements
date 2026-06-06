@@ -11,6 +11,7 @@ from app.models.prompt import Prompt
 from app.models.project import Project
 from app.models.spec import Spec
 from app.seed.run import seed_reference_data
+from app.services.spec_service import create_spec_for_need, update_spec_text
 
 
 def seed_need_with_layer(db_session: Session) -> tuple[int, int]:
@@ -258,6 +259,30 @@ async def test_specs_api_edit_rejects_blank_and_missing(
 
     assert blank_response.status_code == 422
     assert missing_response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_specs_api_lists_revisions_ascending_and_missing_404(
+    api_app: FastAPI,
+    db_session: Session,
+) -> None:
+    """Revision history endpoint returns chronological snapshots."""
+    need_id, _other_need_id = seed_need_with_layer(db_session)
+    spec = create_spec_for_need(db_session, need_id, "Original")
+    update_spec_text(db_session, spec.id, "Edited")
+
+    transport = ASGITransport(app=api_app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get(f"/api/specs/{spec.id}/revisions")
+        missing_response = await client.get("/api/specs/999/revisions")
+
+    assert response.status_code == 200
+    assert missing_response.status_code == 404
+    assert [(item["revision_number"], item["text"], item["change_type"]) for item in response.json()] == [
+        (1, "Original", "created"),
+        (2, "Edited", "text_edited"),
+    ]
+    assert {"status", "source", "created_at"} <= set(response.json()[0])
 
 
 @pytest.mark.asyncio

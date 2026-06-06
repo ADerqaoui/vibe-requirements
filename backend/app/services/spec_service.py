@@ -8,6 +8,7 @@ from app.models.spec_inspection import SpecInspection
 from app.services.layer_service import resolve_target_layer_for_need, resolve_target_layer_for_spec
 from app.services.need_service import NeedNotFoundError, get_need
 from app.services.req_id_service import next_req_id
+from app.services.spec_revision_service import record_spec_revision
 
 
 class SpecNotFoundError(Exception):
@@ -77,6 +78,8 @@ def create_spec_for_need(
         req_id=next_req_id(db, need.project_id, layer),
     )
     db.add(spec)
+    db.flush()
+    record_spec_revision(db, spec, "created")
     db.commit()
     db.refresh(spec)
     return spec
@@ -105,6 +108,8 @@ def create_spec_for_parent_spec(
         req_id=next_req_id(db, need.project_id, layer),
     )
     db.add(spec)
+    db.flush()
+    record_spec_revision(db, spec, "created")
     db.commit()
     db.refresh(spec)
     return spec
@@ -127,6 +132,7 @@ def update_spec_text(db: Session, spec_id: int, text_value: str) -> Spec:
     spec.text = normalized_text
     spec.source = "manual"
     spec.updated_at = db.scalar(select(text("datetime('now')")))
+    record_spec_revision(db, spec, "text_edited")
     db.commit()
     db.refresh(spec)
     return spec
